@@ -1,5 +1,36 @@
-from .image_to_png_node import ImageToPngNode
-from .save_json_file_node import SaveJsonFileNode
-from .save_jpg_node import SaveJPGNode
+from .image_to_png_node import (
+    ImageToPngNode,
+    NODE_CLASS_MAPPINGS as IMAGE_NODE_CLASS_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as IMAGE_NODE_DISPLAY_NAME_MAPPINGS,
+)
+from .pixel_size_to_ratio_node import (
+    PixelSizeToRatioNode,
+    NODE_CLASS_MAPPINGS as PIXEL_NODE_CLASS_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as PIXEL_NODE_DISPLAY_NAME_MAPPINGS,
+)
+from .save_json_file_node import (
+    SaveJsonFileNode,
+    NODE_CLASS_MAPPINGS as JSON_NODE_CLASS_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as JSON_NODE_DISPLAY_NAME_MAPPINGS,
+)
+from .save_jpg_node import (
+    SaveJPGNode,
+    NODE_CLASS_MAPPINGS as JPG_NODE_CLASS_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as JPG_NODE_DISPLAY_NAME_MAPPINGS,
+)
 
-__all__ = ["ImageToPngNode", "SaveJsonFileNode", "SaveJPGNode"]
+NODE_CLASS_MAPPINGS = {
+    **IMAGE_NODE_CLASS_MAPPINGS,
+    **PIXEL_NODE_CLASS_MAPPINGS,
+    **JSON_NODE_CLASS_MAPPINGS,
+    **JPG_NODE_CLASS_MAPPINGS,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    **IMAGE_NODE_DISPLAY_NAME_MAPPINGS,
+    **PIXEL_NODE_DISPLAY_NAME_MAPPINGS,
+    **JSON_NODE_DISPLAY_NAME_MAPPINGS,
+    **JPG_NODE_DISPLAY_NAME_MAPPINGS,
+}
+
+__all__ = ["ImageToPngNode", "SaveJsonFileNode", "SaveJPGNode", "PixelSizeToRatioNode"]

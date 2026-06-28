@@ -3,7 +3,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-import torch
+try:
+    import torch  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    torch = None
+
 from PIL import Image, PngImagePlugin
 
 try:
@@ -143,3 +147,18 @@ class ImageToPngNode:
             return result
 
         raise TypeError(f"Unsupported image type: {type(image)!r}")
+
+
+NODE_CLASS_MAPPINGS = {
+    "ImageToPngNode": ImageToPngNode,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "ImageToPngNode": "图像转为png",
+}
+
+__all__ = [
+    "ImageToPngNode",
+    "NODE_CLASS_MAPPINGS",
+    "NODE_DISPLAY_NAME_MAPPINGS",
+]

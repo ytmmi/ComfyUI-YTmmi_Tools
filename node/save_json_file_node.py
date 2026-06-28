@@ -61,3 +61,18 @@ class SaveJsonFileNode:
         if subfolder:
             base_dir = base_dir / subfolder
         return base_dir
+
+
+NODE_CLASS_MAPPINGS = {
+    "SaveJsonFileNode": SaveJsonFileNode,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SaveJsonFileNode": "保存json文件",
+}
+
+__all__ = [
+    "SaveJsonFileNode",
+    "NODE_CLASS_MAPPINGS",
+    "NODE_DISPLAY_NAME_MAPPINGS",
+]
