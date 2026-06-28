@@ -19,6 +19,11 @@ try:
         NODE_CLASS_MAPPINGS as JPG_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as JPG_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.text_watermark_node import (
+        TextWatermarkNode,
+        NODE_CLASS_MAPPINGS as WATERMARK_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as WATERMARK_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 except ImportError:  # pragma: no cover - fallback for direct module loading
     from node.image_to_png_node import (
         ImageToPngNode,
@@ -40,12 +45,18 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as JPG_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as JPG_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.text_watermark_node import (
+        TextWatermarkNode,
+        NODE_CLASS_MAPPINGS as WATERMARK_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as WATERMARK_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 
 NODE_CLASS_MAPPINGS = {
     **IMAGE_NODE_CLASS_MAPPINGS,
     **PIXEL_NODE_CLASS_MAPPINGS,
     **JSON_NODE_CLASS_MAPPINGS,
     **JPG_NODE_CLASS_MAPPINGS,
+    **WATERMARK_NODE_CLASS_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -53,6 +64,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **PIXEL_NODE_DISPLAY_NAME_MAPPINGS,
     **JSON_NODE_DISPLAY_NAME_MAPPINGS,
     **JPG_NODE_DISPLAY_NAME_MAPPINGS,
+    **WATERMARK_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 __all__ = [
@@ -62,4 +74,5 @@ __all__ = [
     "SaveJsonFileNode",
     "SaveJPGNode",
     "PixelSizeToRatioNode",
+    "TextWatermarkNode",
 ]
