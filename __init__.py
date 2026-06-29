@@ -39,6 +39,11 @@ try:
         NODE_CLASS_MAPPINGS as QR_GEN_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as QR_GEN_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.batch_load_images_node import (
+        BatchLoadImagesNode,
+        NODE_CLASS_MAPPINGS as BATCH_LOAD_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as BATCH_LOAD_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 except ImportError:  # pragma: no cover - fallback for direct module loading
     from node.image_to_png_node import (
         ImageToPngNode,
@@ -80,6 +85,14 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as QR_GEN_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as QR_GEN_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.batch_load_images_node import (
+        BatchLoadImagesNode,
+        NODE_CLASS_MAPPINGS as BATCH_LOAD_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as BATCH_LOAD_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+
+# 声明前端 JS 文件目录，ComfyUI 会自动加载该目录下的所有 .js 文件
+WEB_DIRECTORY = "./js"
 
 NODE_CLASS_MAPPINGS = {
     **IMAGE_NODE_CLASS_MAPPINGS,
@@ -90,6 +103,7 @@ NODE_CLASS_MAPPINGS = {
     **SOLID_COLOR_NODE_CLASS_MAPPINGS,
     **QR_NODE_CLASS_MAPPINGS,
     **QR_GEN_NODE_CLASS_MAPPINGS,
+    **BATCH_LOAD_NODE_CLASS_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -101,11 +115,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **SOLID_COLOR_NODE_DISPLAY_NAME_MAPPINGS,
     **QR_NODE_DISPLAY_NAME_MAPPINGS,
     **QR_GEN_NODE_DISPLAY_NAME_MAPPINGS,
+    **BATCH_LOAD_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 __all__ = [
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",
+    "WEB_DIRECTORY",
     "ImageToPngNode",
     "SaveJsonFileNode",
     "SaveJPGNode",
@@ -114,4 +130,5 @@ __all__ = [
     "CreateSolidColorNode",
     "QrCodeDecodeNode",
     "CreateQrCodeNode",
+    "BatchLoadImagesNode",
 ]
