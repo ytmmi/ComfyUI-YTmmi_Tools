@@ -1,3 +1,4 @@
+# 图像转为png
 import os
 import re
 from pathlib import Path
@@ -30,16 +31,17 @@ class ImageToPngNode:
     """将输入图像保存为 PNG，并输出原图像与工作流 JSON 数据。"""
 
     CATEGORY = "YTmmi/image"
+    DESCRIPTION = '图像转为png：将图像保存为 PNG 文件，输出图像与工作流 JSON 信息'
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE",),
-                "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                "图片": ("IMAGE",),
+                "文件名前缀": ("STRING", {"default": "ComfyUI"}),
             },
             "optional": {
-                "subfolder": ("STRING", {"default": ""}),
+                "子文件夹": ("STRING", {"default": ""}),
             },
             "hidden": {
                 "prompt": ("PROMPT",),
@@ -48,12 +50,16 @@ class ImageToPngNode:
         }
 
     RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("image", "workflow_json")
+    RETURN_NAMES = ("图片", "工作流json")
     FUNCTION = "save"
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (False, False)
 
-    def save(self, image, filename_prefix="ComfyUI", subfolder="", output_dir=None, **kwargs):
+    def save(self, **kwargs):
+        image = kwargs.get("图片")
+        filename_prefix = kwargs.get("文件名前缀", "ComfyUI")
+        subfolder = kwargs.get("子文件夹", "")
+        output_dir = kwargs.get("output_dir")
         workflow_payload = self._collect_workflow_data(kwargs)
         workflow_json = __import__("json").dumps(
             workflow_payload, ensure_ascii=False, sort_keys=True

@@ -1,3 +1,4 @@
+# 保存json文件
 import json
 import os
 import re
@@ -13,26 +14,31 @@ class SaveJsonFileNode:
     """将 JSON 数据保存为文件，并输出文件路径。"""
 
     CATEGORY = "YTmmi/text"
+    DESCRIPTION = '保存json文件：将 JSON 数据写入磁盘文件，返回文件路径'
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "json_data": ("STRING", {"default": "{}"}),
-                "filename_prefix": ("STRING", {"default": "workflow"}),
+                "json数据": ("STRING", {"default": "{}"}),
+                "文件名前缀": ("STRING", {"default": "workflow"}),
             },
             "optional": {
-                "subfolder": ("STRING", {"default": ""}),
+                "子文件夹": ("STRING", {"default": ""}),
             },
         }
 
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("json_file_path",)
+    RETURN_NAMES = ("json文件路径",)
     FUNCTION = "save"
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (False,)
 
-    def save(self, json_data, filename_prefix="workflow", subfolder="", output_dir=None):
+    def save(self, **kwargs):
+        json_data = kwargs.get("json数据")
+        filename_prefix = kwargs.get("文件名前缀", "workflow")
+        subfolder = kwargs.get("子文件夹", "")
+        output_dir = kwargs.get("output_dir")
         output_dir_path = (
             Path(output_dir) if output_dir is not None else self._get_output_dir(subfolder)
         )

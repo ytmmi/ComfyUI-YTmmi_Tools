@@ -1,3 +1,4 @@
+# 保存jpg图像
 import json
 import os
 import re
@@ -69,17 +70,18 @@ class SaveJPGNode:
     """将图片保存为 JPEG，并将工作流数据写入 EXIF 元数据，同时提供预览输出。"""
 
     CATEGORY = "YTmmi/image"
+    DESCRIPTION = '保存jpg图像：将图像保存为 JPG 文件（可调质量），输出预览图像'
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE",),
-                "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                "quality": ("INT", {"default": 95, "min": 1, "max": 100}),
+                "图片": ("IMAGE",),
+                "文件名前缀": ("STRING", {"default": "ComfyUI"}),
+                "质量": ("INT", {"default": 95, "min": 1, "max": 100}),
             },
             "optional": {
-                "subfolder": ("STRING", {"default": ""}),
+                "子文件夹": ("STRING", {"default": ""}),
             },
             "hidden": {
                 "prompt": ("PROMPT",),
@@ -88,12 +90,16 @@ class SaveJPGNode:
         }
 
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("preview_image",)
+    RETURN_NAMES = ("预览图片",)
     FUNCTION = "save"
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (False,)
 
-    def save(self, image, filename_prefix="ComfyUI", quality=95, subfolder="", **kwargs):
+    def save(self, **kwargs):
+        image = kwargs.get("图片")
+        filename_prefix = kwargs.get("文件名前缀", "ComfyUI")
+        quality = kwargs.get("质量", 95)
+        subfolder = kwargs.get("子文件夹", "")
         workflow_payload = self._collect_workflow_data(kwargs)
         output_dir = self._get_output_dir(subfolder)
         output_dir.mkdir(parents=True, exist_ok=True)

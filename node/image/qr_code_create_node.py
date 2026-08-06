@@ -1,3 +1,4 @@
+# 创建二维码
 import numpy as np
 
 try:
@@ -33,6 +34,7 @@ class CreateQrCodeNode:
     """根据输入文本生成二维码图片。"""
 
     CATEGORY = "YTmmi/image"
+    DESCRIPTION = '创建二维码：将文本内容生成二维码图片，可调整尺寸、边距与容错等级'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -46,7 +48,7 @@ class CreateQrCodeNode:
         }
 
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("image",)
+    RETURN_NAMES = ("图片",)
     FUNCTION = "create"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)

@@ -1,3 +1,4 @@
+# 文字水印
 import os
 from typing import Any
 
@@ -202,12 +203,13 @@ class TextWatermarkNode:
     """为图片添加文字水印。"""
 
     CATEGORY = CATEGORY
+    DESCRIPTION = '文字水印：在图像上添加文字水印，支持字体、大小、位置、颜色与不透明度调整'
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE",),
+                "图片": ("IMAGE",),
                 "文字": ("STRING", {"default": "Sample Watermark", "multiline": False}),
                 "字体": (scan_system_fonts(), {"default": "自动"}),
                 "字大小": ("FLOAT", {"default": 0.05, "min": 0.001, "max": 9999, "step": 0.001}),
@@ -221,7 +223,7 @@ class TextWatermarkNode:
         }
 
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("image",)
+    RETURN_NAMES = ("图片",)
     FUNCTION = "apply_watermark"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)
@@ -240,16 +242,17 @@ class TextWatermarkNode:
 
     def apply_watermark(
         self,
-        image: Any,
-        文字: str = "Sample Watermark",
-        字体: str = "自动",
-        字大小: float = 0.05,
-        字位置x: float = 0.5,
-        字位置y: float = 0.5,
-        文字颜色: str = "#FFFFFF",
-        不透明度: float = 1.0,
         **kwargs,
     ) -> tuple:
+        image = kwargs.get("图片")
+        文字 = kwargs.get("文字", "Sample Watermark")
+        字体 = kwargs.get("字体", "自动")
+        字大小 = kwargs.get("字大小", 0.05)
+        字位置x = kwargs.get("字位置x", 0.5)
+        字位置y = kwargs.get("字位置y", 0.5)
+        文字颜色 = kwargs.get("文字颜色", "#FFFFFF")
+        不透明度 = kwargs.get("不透明度", 1.0)
+
         if image is None:
             return (None,)
 

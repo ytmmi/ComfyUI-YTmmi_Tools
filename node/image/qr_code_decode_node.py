@@ -1,3 +1,4 @@
+# 二维码识别
 try:
     import torch  # type: ignore
 except Exception:
@@ -27,22 +28,24 @@ class QrCodeDecodeNode:
     """识别图片中的二维码，返回解码后的文本内容。"""
 
     CATEGORY = "YTmmi/image"
+    DESCRIPTION = '二维码识别：识别图片中的二维码/条形码，输出解码后的文本'
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE",),
+                "图片": ("IMAGE",),
             },
         }
 
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("text",)
+    RETURN_NAMES = ("文本",)
     FUNCTION = "decode"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)
 
-    def decode(self, image) -> tuple:
+    def decode(self, **kwargs) -> tuple:
+        image = kwargs.get("图片")
         if pyzbar_decode is None:
             raise RuntimeError(
                 "pyzbar 未安装，请运行: pip install pyzbar"

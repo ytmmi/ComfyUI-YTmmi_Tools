@@ -1,3 +1,4 @@
+# 批量加载图片
 import random
 from pathlib import Path
 
@@ -91,6 +92,7 @@ class BatchLoadImagesNode:
     """批量加载指定路径文件夹内的图片。"""
 
     CATEGORY = "YTmmi/image"
+    DESCRIPTION = '批量加载图片：从文件夹批量加载图片为图像批次，支持随机/顺序读取与循环播放，输出图片列表、当前种子与下一次读取位置'
 
     # 类级缓存：按 unique_id 持久化运行状态（即使节点重新实例化也不丢失）
     _state_cache: dict[str, dict] = {}
@@ -127,7 +129,7 @@ class BatchLoadImagesNode:
         }
 
     RETURN_TYPES = ("IMAGE", "INT", "INT")
-    RETURN_NAMES = ("images", "当前种子", "下一次位置")
+    RETURN_NAMES = ("图片", "当前种子", "下一次位置")
     FUNCTION = "load"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False, False, False)
@@ -247,7 +249,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "BatchLoadImagesNode": "批量加载图片",
+    "BatchLoadImagesNode": "批量加载图像",
 }
 
 __all__ = [

@@ -1,3 +1,4 @@
+# 创建纯色图片
 import numpy as np
 
 try:
@@ -52,6 +53,7 @@ class CreateSolidColorNode:
     """创建纯色图片。"""
 
     CATEGORY = "YTmmi/image"
+    DESCRIPTION = '创建纯色图片：按指定宽度、高度与颜色生成纯色图像'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -64,7 +66,7 @@ class CreateSolidColorNode:
         }
 
     RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("image",)
+    RETURN_NAMES = ("图片",)
     FUNCTION = "create"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)
@@ -89,7 +91,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "CreateSolidColorNode": "创建纯色图片",
+    "CreateSolidColorNode": "创建纯色图像",
 }
 
 __all__ = [
