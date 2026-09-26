@@ -23,10 +23,23 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 - max_tokens：生成的最大 token 数
 - top_p：核采样（可选，默认 1.0）
 - seed：随机种子（可选，-1 表示不设置，由服务端随机）
-- response_format：输出格式 text / json_object（可选）
+- 图片0~图片8：可选图像输入（IMAGE 类型，最多 9 张）。前端默认只显示「图片0」，
+  连接后自动显现下一张；接入图片后，用户消息按 OpenAI 多模态格式发送（content 为
+  数组，图片编码为 JPEG base64 data URL），兼容 DeepSeek V4.1 Flash（模型 id：
+  deepseek-flash）等支持视觉输入的模型。
 
 输出：模型返回的文本字符串。
 """
+
+import base64
+import io
+
+import torch
+
+try:
+    from PIL import Image
+except Exception:
+    Image = None
 
 try:
     import requests
@@ -61,6 +74,9 @@ except Exception:
 # 预设模型列表：默认不预设（空），模型列表完全由「获取模型」按钮从接口拉取。
 # 之前预设的 gpt-4o/deepseek-chat 等 12 个模型已按用户要求移除。
 DEFAULT_MODELS: list = []
+
+# 图片输入口总数：图片0 ~ 图片8，前端 JS 按此值同步动态端口（默认只显示 1 个）
+MAX_IMAGES = 9
 
 # 获取模型成功后的接口模型列表缓存（进程内）。
 # 作用：ComfyUI 后端会校验 COMBO 输入值必须存在于 INPUT_TYPES 的选项列表中，
@@ -191,7 +207,7 @@ class CustomLLMNode:
     """自定义在线 LLM（OpenAI 兼容接口）。"""
 
     CATEGORY = "YTmmi/text"
-    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、温度/最大token/top_p/种子/JSON 输出'
+    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型）、温度/最大token/top_p/种子'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -218,7 +234,9 @@ class CustomLLMNode:
             "optional": {
                 "核采样（top_p）": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "种子": ("INT", {"default": -1, "min": -1, "max": 0x7FFFFFFF}),
-                "输出格式": (["text", "json_object"], {"default": "text"}),
+                # 图片输入口：图片0 ~ 图片8（IMAGE 类型）。前端默认只显示「图片0」，
+                # 连接后自动显现下一张，最多 9 张（与 MAX_IMAGES 一致）
+                **{f"图片{i}": ("IMAGE",) for i in range(MAX_IMAGES)},
             },
         }
 
@@ -241,7 +259,6 @@ class CustomLLMNode:
         max_tokens = kwargs.get("最大token数", 1024)
         top_p = kwargs.get("核采样（top_p）", 1.0)
         seed = kwargs.get("种子", -1)
-        response_format = kwargs.get("输出格式", "text")
 
         # 凭据规则：
         # 1. API密钥 与 接口地址 必须成对填写（两个都填 → 用手动组合，忽略「选择密钥」）；
@@ -284,15 +301,39 @@ class CustomLLMNode:
 
         # 组装 OpenAI 兼容请求
         url = str(base_url).strip().rstrip("/") + "/chat/completions"
+        # 防御：请求地址必须是 http(s) 接口地址。若 url 变成图片 data URL 等异常内容
+        # （如端口误连接、变量污染），在此直接给出清晰报错而非底层 adapter 错误
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise ValueError(
+                "自定义LLM：接口地址（base_url）格式异常，必须以 http:// 或 https:// 开头，"
+                f"当前值：{url[:120]}"
+            )
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
 
+        # 收集已连接的图片输入（图片0 ~ 图片8，未连接为 None）
+        images = []
+        for i in range(MAX_IMAGES):
+            img = kwargs.get(f"图片{i}")
+            if img is not None:
+                images.append(img)
+
         messages = []
         if str(system_prompt).strip():
             messages.append({"role": "system", "content": str(system_prompt)})
-        messages.append({"role": "user", "content": str(prompt)})
+        if images:
+            # 多模态格式：content 为数组，文本 + 图片（JPEG base64 data URL）。
+            # 适配 DeepSeek V4.1 Flash（模型 id：deepseek-flash）等支持图片输入的
+            # OpenAI 兼容视觉模型；图片仅放在 user 消息中（与官方规范一致）。
+            content = [{"type": "text", "text": str(prompt)}]
+            for img in images:
+                for data_url in self._image_tensor_to_data_urls(img):
+                    content.append({"type": "image_url", "image_url": {"url": data_url}})
+            messages.append({"role": "user", "content": content})
+        else:
+            messages.append({"role": "user", "content": str(prompt)})
 
         payload = {
             "model": str(model),
@@ -303,8 +344,6 @@ class CustomLLMNode:
         }
         if int(seed) >= 0:
             payload["seed"] = int(seed)
-        if response_format == "json_object":
-            payload["response_format"] = {"type": "json_object"}
 
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=120)
@@ -313,6 +352,18 @@ class CustomLLMNode:
 
         if response.status_code != 200:
             detail = response.text[:500] if response.text else "无响应内容"
+            # 发送了图片但模型不支持：给出选模型建议（如 DeepSeek 需用 deepseek-flash）
+            detail_lower = detail.lower()
+            if images and (
+                "does not support image" in detail_lower
+                or "not support image" in detail_lower
+                or "cannot read" in detail_lower
+            ):
+                raise RuntimeError(
+                    f"自定义LLM：当前模型「{model}」不支持图片输入。"
+                    "请选择支持视觉的模型（如 DeepSeek 的 deepseek-flash / DeepSeek V4.1 Flash）。"
+                    f"接口返回 {response.status_code}：{detail}"
+                )
             raise RuntimeError(
                 f"自定义LLM：接口返回 {response.status_code}：{detail}"
             )
@@ -327,6 +378,29 @@ class CustomLLMNode:
             raise RuntimeError("自定义LLM：接口返回结果中没有 choices 字段")
         content = choices[0].get("message", {}).get("content", "")
         return (content,)
+
+    @staticmethod
+    def _tensor_to_data_url(tensor):
+        """单张 [H,W,C] 0~1 RGB 张量 → JPEG base64 data URL。"""
+        if Image is None:
+            raise RuntimeError(
+                "自定义LLM：缺少 Pillow 库，请先安装 Pillow（pip install Pillow）"
+            )
+        arr = (
+            tensor.detach().cpu().clamp(0.0, 1.0) * 255.0
+        ).to(torch.uint8).numpy()
+        img = Image.fromarray(arr, mode="RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=95)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        return f"data:image/jpeg;base64,{b64}"
+
+    @staticmethod
+    def _image_tensor_to_data_urls(image):
+        """IMAGE 张量 [B,H,W,C]（0~1 RGB）→ 逐帧 JPEG base64 data URL 列表。"""
+        if image.dim() == 3:
+            image = image.unsqueeze(0)
+        return [CustomLLMNode._tensor_to_data_url(frame) for frame in image]
 
 
 NODE_CLASS_MAPPINGS = {
