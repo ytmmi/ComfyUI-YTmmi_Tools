@@ -19,6 +19,12 @@
 
 import io
 import json
+import os
+import shutil
+import subprocess
+import tempfile
+import wave
+from fractions import Fraction
 
 import numpy as np
 import torch
@@ -119,6 +125,7 @@ class VideoConcatInput(VideoInput):
         codec=None,
         metadata=None,
         bit_depth=None,
+        **kwargs,  # 兼容原生 SaveVideo 传入的 crf 等编码参数（本实现忽略，使用默认编码质量）
     ):
         if av is None or VideoContainer is None or VideoCodec is None:
             raise RuntimeError("视频拼接：当前环境不支持 VIDEO 类型，请升级 ComfyUI")
@@ -159,72 +166,134 @@ class VideoConcatInput(VideoInput):
         frame_rate = VideoConcatInput._normalize_fraction(frame_rate)
         width, height = ref_hw
 
-        with av.open(
-            path, mode="w", options={"movflags": "use_metadata_tags"}, **extra_kwargs
-        ) as output:
-            if metadata is not None:
-                for key, value in metadata.items():
-                    output.metadata[key] = json.dumps(value, ensure_ascii=False)
+        # 音频：逐段收集（内存占用远小于视频帧）
+        audio_parts = []
+        audio_sample_rate = None
+        for video in self._inputs:
+            components = video.get_components()
+            if components.audio is not None:
+                if audio_sample_rate is None:
+                    audio_sample_rate = int(components.audio["sample_rate"])
+                if audio_sample_rate == int(components.audio["sample_rate"]):
+                    audio_parts.append(components.audio)
+                else:
+                    # 采样率不一致：丢弃后续音频，避免错误混音
+                    audio_parts = []
+                    audio_sample_rate = None
+            components = None  # 尽快释放
 
-            pix_fmt = "yuv420p10le" if is_10bit else "yuv420p"
-            video_stream = output.add_stream("h264", rate=frame_rate)
-            video_stream.width = width
-            video_stream.height = height
-            video_stream.pix_fmt = pix_fmt
+        # 视频编码到临时文件（不含音频），音频随后用 ffmpeg 合并：
+        # av 库对 mp4+aac 的 time_base 支持不完整（mux 抛 "Cannot rebase to
+        # zero time"，设置 time_base 又 native abort），改用 ffmpeg 子进程
+        # 做音频编码最可靠；无音频或 ffmpeg 不可用时保持无声。
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video_tmp = os.path.join(tmpdir, "video_tmp.mp4")
+            with av.open(
+                video_tmp, mode="w", options={"movflags": "use_metadata_tags"}
+            ) as output:
+                if metadata is not None:
+                    for key, value in metadata.items():
+                        output.metadata[key] = json.dumps(value, ensure_ascii=False)
 
-            # 音频：逐段收集（内存占用远小于视频帧），最后统一编码
-            audio_parts = []
-            audio_sample_rate = None
-            audio_layout = None
+                pix_fmt = "yuv420p10le" if is_10bit else "yuv420p"
+                video_stream = output.add_stream("h264", rate=frame_rate)
+                video_stream.width = width
+                video_stream.height = height
+                video_stream.pix_fmt = pix_fmt
 
-            # 逐段解码并编码视频帧，段结束后立即释放该段帧内存
-            for video in self._inputs:
-                components = video.get_components()
-                if components.audio is not None:
-                    if audio_sample_rate is None:
-                        audio_sample_rate = int(components.audio["sample_rate"])
-                    if audio_sample_rate == int(components.audio["sample_rate"]):
-                        audio_parts.append(components.audio)
-                    else:
-                        # 采样率不一致：丢弃后续音频，避免错误混音
-                        audio_parts = []
-                        audio_sample_rate = None
-                for frame in components.images:
-                    if is_10bit:
-                        img = (
-                            frame.float() * 65535
-                        ).clamp(0, 65535).cpu().numpy().astype(np.uint16)
-                        out_frame = av.VideoFrame.from_ndarray(img, format="rgb48le")
-                    else:
-                        img = (frame * 255).clamp(0, 255).byte().cpu().numpy()
-                        out_frame = av.VideoFrame.from_ndarray(img, format="rgb24")
-                    out_frame = out_frame.reformat(format=pix_fmt)
-                    packet = video_stream.encode(out_frame)
-                    output.mux(packet)
-                # 释放该段 components，降低峰值内存
-                components = None
+                # 逐段解码并编码视频帧，段结束后立即释放该段帧内存
+                for video in self._inputs:
+                    components = video.get_components()
+                    for frame in components.images:
+                        if is_10bit:
+                            img = (
+                                frame.float() * 65535
+                            ).clamp(0, 65535).cpu().numpy().astype(np.uint16)
+                            out_frame = av.VideoFrame.from_ndarray(img, format="rgb48le")
+                        else:
+                            img = (frame * 255).clamp(0, 255).byte().cpu().numpy()
+                            out_frame = av.VideoFrame.from_ndarray(img, format="rgb24")
+                        out_frame = out_frame.reformat(format=pix_fmt)
+                        packet = video_stream.encode(out_frame)
+                        output.mux(packet)
+                    components = None  # 释放该段 components，降低峰值内存
 
-            # 刷新视频编码器
-            output.mux(video_stream.encode(None))
+                # 刷新视频编码器
+                output.mux(video_stream.encode(None))
 
-            # 编码拼接后的音频（全部存在且采样率一致时）
+            merged = video_tmp
             if audio_parts:
-                waveform = torch.cat([part["waveform"] for part in audio_parts], dim=2)
-                layout = {1: "mono", 2: "stereo", 6: "5.1"}.get(
-                    waveform.shape[1], "stereo"
+                merged = VideoConcatInput._merge_audio(
+                    video_tmp, audio_parts, audio_sample_rate, tmpdir
                 )
-                audio_stream = output.add_stream(
-                    "aac", rate=audio_sample_rate, layout=layout
-                )
-                audio_frame = av.AudioFrame.from_ndarray(
-                    waveform.float().cpu().contiguous().numpy(),
-                    format="fltp",
-                    layout=layout,
-                )
-                audio_frame.sample_rate = audio_sample_rate
-                audio_frame.pts = 0
-                output.mux(audio_stream.encode(audio_frame))
-                output.mux(audio_stream.encode(None))
+
+            if isinstance(path, io.BytesIO):
+                with open(merged, "rb") as f:
+                    path.seek(0)
+                    path.write(f.read())
+            else:
+                shutil.move(merged, path)
+
+    @staticmethod
+    def _merge_audio(video_tmp, audio_parts, audio_sample_rate, tmpdir):
+        """用 ffmpeg 将拼接音频合并进视频（视频流 copy 零重编码）。
+
+        返回最终文件路径；ffmpeg 不可用或失败时返回原视频路径（无声降级）。
+        """
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            print(
+                "[视频拼接] 未找到 ffmpeg，音频已跳过（视频保持无声）",
+                flush=True,
+            )
+            return video_tmp
+        try:
+            wav_tmp = os.path.join(tmpdir, "audio_tmp.wav")
+            out_tmp = os.path.join(tmpdir, "merged_tmp.mp4")
+            VideoConcatInput._write_wav(wav_tmp, audio_parts, audio_sample_rate)
+            cmd = [
+                ffmpeg, "-y",
+                "-i", video_tmp,
+                "-i", wav_tmp,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-shortest",
+                out_tmp,
+            ]
+            proc = subprocess.run(
+                cmd, capture_output=True, timeout=300,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if proc.returncode != 0 or not os.path.exists(out_tmp) or os.path.getsize(out_tmp) == 0:
+                raise RuntimeError((proc.stderr or b"").decode("utf-8", "ignore")[-300:])
+            return out_tmp
+        except Exception as exc:
+            print(
+                f"[视频拼接] ffmpeg 音频合并失败已跳过（视频保持无声）：{exc}",
+                flush=True,
+            )
+            return video_tmp
+
+    @staticmethod
+    def _write_wav(path, audio_parts, sample_rate):
+        """将拼接后的音频波形写成 16-bit PCM WAV 文件（标准库 wave）。
+
+        V3 音频波形形状为 [B, C, T]（B 通常为 1）；wave 模块要求
+        [T, C] 交错排布，因此去掉 batch 维后转置。
+        """
+        waveform = torch.cat([part["waveform"] for part in audio_parts], dim=2)
+        wav = waveform.float().cpu().contiguous()
+        while wav.ndim > 2:
+            wav = wav[0]  # [C, T]
+        # [C, T] → [T, C]（交错）
+        data = wav.transpose(0, 1).contiguous().numpy()
+        data = (np.clip(data, -1.0, 1.0) * 32767).astype(np.int16)
+        channels = data.shape[1] if data.ndim > 1 else 1
+        with wave.open(path, "wb") as wf:
+            wf.setnchannels(channels)
+            wf.setsampwidth(2)
+            wf.setframerate(int(sample_rate))
+            wf.writeframes(data.tobytes())
 
     def as_trimmed(self, start_time=0.0, duration=0.0, strict_duration=True):
         if VideoFromFile is None:

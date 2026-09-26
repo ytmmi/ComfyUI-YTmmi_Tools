@@ -1,4 +1,4 @@
-# 创建纯色图片
+# 创建纯色图像
 import numpy as np
 
 try:
@@ -50,10 +50,10 @@ def _parse_color(color_str: str) -> tuple[int, int, int]:
 
 
 class CreateSolidColorNode:
-    """创建纯色图片。"""
+    """创建纯色图像。"""
 
     CATEGORY = "YTmmi/image"
-    DESCRIPTION = '创建纯色图片：按指定宽度、高度与颜色生成纯色图像'
+    DESCRIPTION = '创建纯色图像：按指定宽度、高度与颜色生成纯色图像'
 
     @classmethod
     def INPUT_TYPES(cls):

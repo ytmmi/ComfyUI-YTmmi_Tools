@@ -1,28 +1,46 @@
-# 展示文本
-"""展示文本节点。
+# 展示文本（多重）
+"""展示文本（多重）节点。
 
-展示上游节点传来的文本类信息（字符串、数字、布尔、JSON 结构等），
+展示 0~8 号输入口传来的文本类信息（字符串、数字、布尔、JSON 结构等），
 对非文本类型进行过滤，不展示其内容：
 - torch.Tensor（图像 / 视频帧 / 蒙版等）→ 过滤
 - LATENT（含 samples 键的字典）→ 过滤
 - AUDIO（含 waveform / sample_rate 键的字典）→ 过滤
 
 输入使用通配类型 "*"，允许连接任意类型的输出端口。
+同时连接 2 个及以上输入口时，展示内容按输入口序号（0 起始）分隔标注，
+例如：
+
+【输入0】
+内容一
+
+────── 输入1 ──────
+
+内容二
+
+前端默认只显示「输入0」，连接后自动显现下一个输入口，最多 9 个
+（输入0 ~ 输入8，与 MAX_INPUTS 一致）。
 """
 
 import json
 
 import torch
 
+# 输入口总数：输入0 ~ 输入8，前端 JS 按此值同步动态端口
+MAX_INPUTS = 9
+
 
 class DisplayTextNode:
-    """展示从节点获取的字符串信息，过滤音频、潜空间、视频等非文本类型。"""
+    """展示从 0~8 号输入口获取的字符串信息，过滤音频、潜空间、视频等非文本类型。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = '展示文本：展示上游节点的字符串信息（数字、字符串、文本、JSON 等），音频、潜空间、视频等类型自动过滤不展示'
+    DESCRIPTION = '展示文本（多重）：展示上游节点 0~8 号输入口的字符串信息（数字、字符串、文本、JSON 等），多输入自动按输入口序号分隔标注；音频、潜空间、视频等类型自动过滤不展示'
 
     @classmethod
     def INPUT_TYPES(cls):
+        optional = {}
+        for i in range(MAX_INPUTS):
+            optional[f"输入{i}"] = ("*",)
         return {
             "required": {
                 "文本": (
@@ -34,9 +52,7 @@ class DisplayTextNode:
                     },
                 ),
             },
-            "optional": {
-                "输入": ("*",),
-            },
+            "optional": optional,
         }
 
     RETURN_TYPES = ("STRING",)
@@ -44,11 +60,28 @@ class DisplayTextNode:
     FUNCTION = "show"
     OUTPUT_NODE = True
     OUTPUT_IS_LIST = (False,)
-    SEARCH_ALIASES = ["show text", "display text", "文本显示", "展示文本"]
+    SEARCH_ALIASES = ["show text", "display text", "文本显示", "展示文本", "多重文本", "文本合并展示"]
 
     def show(self, **kwargs):
-        value = kwargs.get("输入")
-        display_text = self._to_display_text(value)
+        parts = []
+        for i in range(MAX_INPUTS):
+            value = kwargs.get(f"输入{i}")
+            if value is None:
+                continue
+            parts.append((i, self._to_display_text(value)))
+
+        if not parts:
+            display_text = ""
+        elif len(parts) == 1:
+            display_text = parts[0][1]
+        else:
+            blocks = []
+            for idx, text in parts:
+                if idx == 0:
+                    blocks.append(f"【输入{idx}】\n{text}")
+                else:
+                    blocks.append(f"────── 输入{idx} ──────\n\n{text}")
+            display_text = "\n\n".join(blocks)
         return {"ui": {"文本": [display_text]}, "result": (display_text,)}
 
     @staticmethod
@@ -101,7 +134,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DisplayTextNode": "展示文本",
+    "DisplayTextNode": "展示文本（多重）",
 }
 
 __all__ = [
