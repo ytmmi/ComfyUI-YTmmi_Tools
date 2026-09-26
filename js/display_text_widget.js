@@ -71,16 +71,38 @@ app.registerExtension({
       widget.serialize = false;
     };
 
+    // 新版前端可能把「文本」STRING 展示控件转成可连接端口（含旧工作流中已保存的端口），
+    // 未连接时执行会报 Missing connection。主动删除该输入端口，强制保持为纯展示控件。
+    const removeTextPort = function (node) {
+      if (!node.inputs) return;
+      for (let i = node.inputs.length - 1; i >= 0; i--) {
+        if (node.inputs[i].name === "文本") {
+          node.removeInput(i);
+        }
+      }
+    };
+
     const originalOnNodeCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const r = originalOnNodeCreated?.apply(this, arguments);
       makeReadOnly(this.widgets?.find((w) => w.name === "文本"));
       // 节点创建/加载后多次刷新，兼容不同前端版本的输入填充时机
-      const sync = () => syncInputs(this);
+      const sync = () => {
+        syncInputs(this);
+        removeTextPort(this);
+      };
       sync();
       setTimeout(sync, 0);
       setTimeout(sync, 100);
       setTimeout(sync, 500);
+      return r;
+    };
+
+    // 加载工作流（configure）后端口会按保存内容恢复，需再次删除「文本」端口
+    const originalOnConfigure = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function () {
+      const r = originalOnConfigure?.apply(this, arguments);
+      removeTextPort(this);
       return r;
     };
 

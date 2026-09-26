@@ -38,20 +38,22 @@ class DisplayTextNode:
 
     @classmethod
     def INPUT_TYPES(cls):
-        optional = {}
+        optional = {
+            # 「文本」为展示控件（执行后回填结果）。放在 optional 可避免新版前端把
+            # required STRING 转成可连接端口后，未连接时执行报 "Missing connection"。
+            "文本": (
+                "STRING",
+                {
+                    "default": "",
+                    "multiline": True,
+                    "placeholder": "展示结果将显示在这里",
+                },
+            ),
+        }
         for i in range(MAX_INPUTS):
             optional[f"输入{i}"] = ("*",)
         return {
-            "required": {
-                "文本": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "multiline": True,
-                        "placeholder": "展示结果将显示在这里",
-                    },
-                ),
-            },
+            "required": {},
             "optional": optional,
         }
 

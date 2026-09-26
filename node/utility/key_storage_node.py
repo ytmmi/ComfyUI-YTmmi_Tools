@@ -6,9 +6,10 @@
 使用方式：
 1. 在「名称」「密钥」「接口地址」中填写内容，点击节点上的「保存」按钮，
    密钥将加密写入插件目录下的存储文件；
-2. 「已保存名称」下拉菜单列出已保存的名称（保存后自动刷新），选择后
+2. 「选择密钥」下拉菜单列出已保存的预设名称（保存/删除后自动刷新），选择后
    自动回填「名称」；
-3. 执行节点（名称已填）即输出该名称对应的密钥与接口地址。
+3. 「删除密钥」按钮：删除「选择密钥」当前选中的预设（点击后需确认）；
+4. 执行节点（名称已填）即输出该名称对应的密钥与接口地址。
 
 加密方案：
 - 以系统用户名的前 5 位为密码，拼接固定盐后经 SHA-256 派生 Fernet 密钥；
@@ -137,6 +138,30 @@ if (
             )
         return web.json_response(data[name])
 
+    @PromptServer.instance.routes.post("/ytmmi/keys/delete")
+    async def ytmmi_keys_delete(request):
+        """按名称删除已保存的密钥预设（前端「删除密钥」按钮调用）。"""
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"error": "请求体不是有效 JSON"}, status=400)
+
+        name = str(body.get("名称", "")).strip()
+        if not name:
+            return web.json_response({"error": "请输入要删除的名称"}, status=400)
+
+        try:
+            data = load_vault()
+            if name not in data:
+                return web.json_response(
+                    {"error": f"未找到已保存的「{name}」"}, status=404
+                )
+            del data[name]
+            save_vault(data)
+        except Exception as exc:
+            return web.json_response({"error": f"删除失败：{exc}"}, status=500)
+        return web.json_response({"names": sorted(data.keys())})
+
 
 class KeyStorageNode:
     """密钥储存器：加密保存密钥并按名称输出。"""
@@ -156,7 +181,7 @@ class KeyStorageNode:
                 ),
             },
             "optional": {
-                # 正式下拉：列出已保存密钥名称，选择后由前端回填「名称」
+                # 正式下拉：列出已保存的预设名称，选择后由前端回填「名称」
                 "选择密钥": (vault_names() or [""], {"default": ""}),
             },
         }

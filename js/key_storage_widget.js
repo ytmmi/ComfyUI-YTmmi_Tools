@@ -7,6 +7,8 @@ import { app } from "../../scripts/app.js";
  * - 下拉列出已加密保存的密钥名称，选择后自动回填到「名称」；
  * - 「保存」按钮：将「名称 / 密钥 / 接口地址」POST 到后端加密存储，
  *   保存成功后自动刷新「选择密钥」下拉；
+ * - 「删除密钥」按钮：删除「选择密钥」当前选中的预设（点击后需确认），
+ *   删除成功后自动刷新「选择密钥」下拉；
  * - 加载/刷新时若当前值不在下拉选项中，自动补入，避免 "Value not in list"。
  */
 app.registerExtension({
@@ -109,6 +111,46 @@ app.registerExtension({
       }
     };
 
+    nodeType.prototype.deleteKey = async function () {
+      const combo = this.widgets?.find((w) => w.name === "选择密钥");
+      const name = (combo?.value || "").trim();
+      if (!name) {
+        alert("请先在「选择密钥」下拉中选择要删除的密钥");
+        return;
+      }
+      if (!confirm(`确定删除密钥「${name}」吗？`)) return;
+      try {
+        const resp = await fetch("/ytmmi/keys/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 名称: name }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          alert("删除失败：" + (data.error || resp.status));
+          return;
+        }
+        // 删除成功后刷新「选择密钥」下拉：
+        // 仍有剩余预设 → 选中第一个并回填「名称」；全部删除 → 清空占位
+        const names = data.names || [];
+        const nameWidget = this.widgets?.find((w) => w.name === "名称");
+        if (names.length) {
+          setComboOptions(combo, names);
+          combo.value = names[0];
+          if (nameWidget) nameWidget.value = names[0];
+        } else {
+          setComboOptions(combo, [""]);
+          combo.value = "";
+          if (nameWidget) nameWidget.value = "";
+        }
+        combo.callback?.(combo.value);
+        this.setDirtyCanvas(true);
+        alert(`已删除「${name}」`);
+      } catch (e) {
+        alert("删除失败：" + (e.message || e));
+      }
+    };
+
     const originalOnNodeCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const r = originalOnNodeCreated?.apply(this, arguments);
@@ -124,6 +166,12 @@ app.registerExtension({
           }
         };
       }
+
+      // 「删除密钥」按钮：删除「选择密钥」当前选中的预设（位于「保存」上方）
+      const delBtn = this.addWidget("button", "删除密钥", null, () => {
+        this.deleteKey();
+      });
+      delBtn.serialize = false;
 
       // 「保存」按钮
       const btn = this.addWidget("button", "保存", null, () => {
