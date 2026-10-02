@@ -70,7 +70,12 @@ class DisplayTextNode:
             value = kwargs.get(f"输入{i}")
             if value is None:
                 continue
-            parts.append((i, self._to_display_text(value)))
+            text = self._to_display_text(value)
+            # 已连接但内容为空：给出可见标记，避免与「未连接」无法区分
+            # （上游节点空输出时，这里若显示空白会让人误以为节点没执行）
+            if not str(text).strip():
+                text = self._empty_placeholder(i)
+            parts.append((i, text))
 
         if not parts:
             display_text = ""
@@ -85,6 +90,15 @@ class DisplayTextNode:
                     blocks.append(f"────── 输入{idx} ──────\n\n{text}")
             display_text = "\n\n".join(blocks)
         return {"ui": {"文本": [display_text]}, "result": (display_text,)}
+
+    @staticmethod
+    def _empty_placeholder(index):
+        """已连接输入口的空内容占位提示。"""
+        return (
+            f"[空文本] 输入{index} 已连接，但上游输出为空字符串。\n"
+            "请检查上游节点：常见原因是生成被截断（调大最大token数）、"
+            "接口返回内容为空或提示词未产生有效输出。"
+        )
 
     @staticmethod
     def _to_display_text(value):

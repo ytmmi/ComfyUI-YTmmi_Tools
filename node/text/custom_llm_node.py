@@ -125,6 +125,21 @@ SKILLS_READ_MAX_CHARS_DEFAULT = 72000
 # 累计注入的 skills 内容上限（防止上下文无限膨胀）
 SKILLS_TOTAL_CHARS_DEFAULT = 300000
 
+# 空响应自动重试次数（仅针对 finish_reason 正常结束的瞬时空响应）
+EMPTY_OUTPUT_RETRIES = 2
+
+
+class EmptyLLMOutputError(RuntimeError):
+    """接口返回 200 但内容为空。
+
+    retryable=True 表示该空响应可能是瞬时的（如网关抖动、模型偶发空回复），
+    可安全重试一次；截断/内容过滤/工具调用等属于确定性原因，重试无意义。
+    """
+
+    def __init__(self, message, retryable=False):
+        super().__init__(message)
+        self.retryable = bool(retryable)
+
 # 获取模型成功后的接口模型列表缓存（进程内）。
 # 作用：ComfyUI 后端会校验 COMBO 输入值必须存在于 INPUT_TYPES 的选项列表中，
 # 因此把「获取模型」得到的真实模型并入选项，保证 deepseek-v4-pro 这类
@@ -276,7 +291,16 @@ class CustomLLMNode:
                 "系统提示词": ("STRING", {"default": "", "multiline": True}),
                 "提示词": ("STRING", {"default": "", "multiline": True, "placeholder": "输入要求或问题"}),
                 "温度": ("FLOAT", {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1}),
-                "最大token数": ("INT", {"default": 1024, "min": 1, "max": 32768}),
+                "最大token数": (
+                    "INT",
+                    {
+                        "default": 8192,
+                        "min": 1,
+                        "max": 32768,
+                        "tooltip": "生成的最大 token 数。推理模型会先消耗大量 token 用于思考，"
+                        "默认 8192；若出现「思考被截断」请继续调大",
+                    },
+                ),
             },
             "optional": {
                 # skills 指导文本：由「skills管理器」节点的 skills 输出接入（字符串端口）。
@@ -467,8 +491,46 @@ class CustomLLMNode:
         top_p,
         seed,
         images,
+        retries=EMPTY_OUTPUT_RETRIES,
     ) -> str:
-        """发送一次 chat/completions 请求并返回助手文本。"""
+        """发送一次 chat/completions 请求并返回助手文本。
+
+        当接口返回 200 但内容为空、且 finish_reason 属于正常结束时，自动重试
+        （最多 retries 次），避免偶发空响应直接变成空输出。
+        """
+        last_error = None
+        for attempt in range(max(0, int(retries)) + 1):
+            try:
+                return self._post_chat_once(
+                    url=url,
+                    headers=headers,
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p,
+                    seed=seed,
+                    images=images,
+                )
+            except EmptyLLMOutputError as exc:
+                last_error = exc
+                if not exc.retryable or attempt >= int(retries):
+                    raise
+        raise last_error  # pragma: no cover - 循环内必然 return 或 raise
+
+    def _post_chat_once(
+        self,
+        url,
+        headers,
+        messages,
+        model,
+        temperature,
+        max_tokens,
+        top_p,
+        seed,
+        images,
+    ) -> str:
+        """发送单次 chat/completions 请求并解析响应。"""
         payload = {
             "model": str(model),
             "messages": messages,
@@ -510,7 +572,131 @@ class CustomLLMNode:
         choices = data.get("choices") or []
         if not choices:
             raise RuntimeError("自定义LLM：接口返回结果中没有 choices 字段")
-        return choices[0].get("message", {}).get("content", "") or ""
+
+        choice = choices[0] if isinstance(choices[0], dict) else {}
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            message = {}
+        finish_reason = str(choice.get("finish_reason") or "").strip().lower()
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+
+        text, source = self._extract_message_text(message)
+
+        if not text.strip():
+            # 空输出不再静默返回空串（下游「展示文本（多重）」会看起来像没执行），
+            # 而是抛出带明确原因的报错，便于定位是截断、过滤还是接口不兼容。
+            # finish_reason 正常结束（stop/None）时视为可重试的瞬时抖动。
+            retryable = finish_reason in ("", "stop", "null")
+            raise EmptyLLMOutputError(
+                self._empty_output_message(
+                    model=model,
+                    finish_reason=finish_reason,
+                    usage=usage,
+                    message=message,
+                    images=images,
+                    max_tokens=max_tokens,
+                ),
+                retryable=retryable,
+            )
+
+        if source == "reasoning_content" and finish_reason == "length":
+            # 只有思考内容且被截断：说明 token 用尽在推理阶段，最终答案并未产生
+            raise EmptyLLMOutputError(
+                f"自定义LLM：模型「{model}」的思考过程被截断，未产生最终答案。"
+                f"当前「最大token数」为 {int(max_tokens)}，推理模型会先消耗大量 token 用于思考，"
+                "请调大「最大token数」后重试。"
+            )
+
+        return text
+
+    @staticmethod
+    def _extract_message_text(message) -> tuple:
+        """从响应 message 中提取文本，兼容多种 provider 形态。
+
+        返回 (text, source)，source 取值 "content" / "reasoning_content" / ""：
+        - content 为字符串 → 原样返回；
+        - content 为 parts 数组（如 [{"type":"text","text":...}]）→ 拼接其中的文本；
+        - content 为空但存在 reasoning_content → 回退到思考内容（部分推理模型
+          会把答案放在该字段）。
+        """
+        if not isinstance(message, dict):
+            return "", ""
+
+        def from_parts(parts) -> str:
+            chunks = []
+            for part in parts:
+                if isinstance(part, str):
+                    chunks.append(part)
+                elif isinstance(part, dict):
+                    text = part.get("text")
+                    if isinstance(text, str):
+                        chunks.append(text)
+                    elif isinstance(part.get("content"), str):
+                        chunks.append(part["content"])
+            return "".join(chunks)
+
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content, "content"
+        if isinstance(content, list):
+            joined = from_parts(content)
+            if joined.strip():
+                return joined, "content"
+
+        # reasoning_content 为 DeepSeek 等推理模型的思考字段，reasoning 为部分网关的别名
+        for key in ("reasoning_content", "reasoning"):
+            reasoning = message.get(key)
+            if isinstance(reasoning, str) and reasoning.strip():
+                return reasoning, "reasoning_content"
+            if isinstance(reasoning, list):
+                joined = from_parts(reasoning)
+                if joined.strip():
+                    return joined, "reasoning_content"
+
+        return "", ""
+
+    @staticmethod
+    def _empty_output_message(
+        model, finish_reason, usage, message, images, max_tokens
+    ) -> str:
+        """构造空输出的诊断信息（含 finish_reason 与可执行的修复建议）。"""
+        details = [f"接口返回了 200 但内容为空（模型「{model}」）"]
+        if finish_reason:
+            details.append(f"finish_reason={finish_reason}")
+
+        completion_tokens = usage.get("completion_tokens")
+        if completion_tokens is not None:
+            details.append(f"completion_tokens={completion_tokens}")
+
+        if isinstance(message.get("reasoning_content"), str) and message.get(
+            "reasoning_content"
+        ).strip():
+            details.append("仅返回了 reasoning_content（思考内容）")
+        if message.get("refusal"):
+            details.append(f"refusal={str(message['refusal'])[:100]}")
+        if "content" not in message:
+            details.append("响应缺少 content 字段")
+
+        hints = {
+            "length": (
+                f"输出被「最大token数」截断（当前 {int(max_tokens)}）。"
+                "推理模型会先消耗大量 token 思考，请调大「最大token数」后重试。"
+            ),
+            "content_filter": "内容被接口安全策略过滤，请调整提示词或系统提示词。",
+            "tool_calls": "模型尝试调用工具（tool_calls），而本节点未启用工具协议。",
+            "function_call": "模型尝试调用函数（function_call），而本节点未启用工具协议。",
+        }
+        hint = hints.get(finish_reason)
+        if hint is None:
+            hint = (
+                "常见原因：①「最大token数」过小导致输出被截断；"
+                "②该模型为推理模型，需调大 token 上限；"
+                "③接口/模型名不兼容或返回格式非 OpenAI 标准。"
+            )
+            if images:
+                hint += " ④当前请求含图片，请确认所选模型支持视觉输入。"
+
+        return "；".join(details) + "。" + hint
 
     # ── 渐进式披露：多轮按需读取 skills ───────────────────────────────────
 
