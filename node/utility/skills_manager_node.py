@@ -81,14 +81,38 @@ AUTO_MARKER = "<<<YTMMI_SKILLS_AUTO>>>"
 READABLE_SUFFIXES = {".md", ".txt", ".yaml", ".yml", ".json"}
 
 # 「附加说明」的默认强调提示词。
-# 「提示词书写」类 skills（h3-prompt-writing）容易在提示词前后附带说明、解释、
-# 开场白、代码块围栏等无关文字，因此在「附加说明」文本框中默认填充本条强调，
-# 由用户自行决定保留或删除（前端 JS 在切换到非提示词类 skills 时会自动清空，
-# 以免误伤会输出多段制作方案的风格类 skills）。
+#
+# 不同 skills 的输出格式不同，因此强调说明按 skills 区分（见 SKILL_EXTRA_NOTES 与
+# default_extra_note）；skills 也可在 SKILL.md front matter / meta.yaml 中用
+# `extra-note` 自行声明。默认值填充在「附加说明」文本框中，用户可自行删除或改写，
+# 前端 JS 在切换到其它 skills 时会按新 skills 的默认值替换（用户自定义内容不动）。
 PROMPT_ONLY_NOTE = (
     "【输出要求】只输出最终的提示词正文本身，不要输出任何说明、解释、前言、后记、"
     "标题、Markdown 代码块围栏或分隔线，也不要复述本条要求。"
 )
+
+# 输出严格 JSON 的 skills（如 Qwen-Image 的提示词改写）不能用「只输出提示词正文」，
+# 否则会与 skills 自身的 JSON 输出契约冲突。
+JSON_ONLY_NOTE = (
+    "【输出要求】只输出一个严格合法的 JSON 对象（单行，不要用 Markdown 代码块围栏"
+    "包裹），不要输出任何说明、解释、前言、后记、示例或多余字段，也不要复述本条要求。"
+)
+
+# 「自动」模式下模型可能选中任意 skills（含 JSON 输出类），因此使用与具体格式无关的
+# 通用强调，只约束「不要输出说明性文字」。
+GENERIC_ONLY_NOTE = (
+    "【输出要求】只输出最终结果本身，并严格遵循所选 skills 规定的输出格式；"
+    "不要输出任何说明、解释、前言、后记、开场白或 Markdown 代码块围栏，"
+    "也不要复述本条要求。"
+)
+
+# 按 skills id 指定默认强调说明（未列出的提示词书写类 skills 用 PROMPT_ONLY_NOTE，
+# 其余风格类 skills 留空）
+SKILL_EXTRA_NOTES = {
+    "h3-prompt-writing": PROMPT_ONLY_NOTE,
+    "qwen-image-t2i-prompt": JSON_ONLY_NOTE,
+    "qwen-image-edit-prompt": JSON_ONLY_NOTE,
+}
 
 # 读取参考资料时的默认字符上限
 MAX_CHARS_DEFAULT = 72000
@@ -105,6 +129,7 @@ class SkillSpec:
     display_name: str = ""
     version: str = ""
     tags: tuple = ()
+    extra_note: str = ""
 
 
 # ── 元数据解析（仅解析发现所需的少量 YAML 子集，避免引入额外依赖）──────────
@@ -248,6 +273,13 @@ def _metadata(skill_root: Path) -> tuple:
         or str(meta.get("display_name_zh", "")).strip()
     )
     version = front.get("version", "").strip() or str(meta.get("version", "")).strip()
+    # skills 可在元数据中自带默认「附加说明」（extra-note / extra_note）
+    extra_note = (
+        front.get("extra_note", "").strip()
+        or front.get("extra-note", "").strip()
+        or str(meta.get("extra_note", "")).strip()
+        or str(meta.get("extra-note", "")).strip()
+    )
 
     raw_tags = []
     for values in (
@@ -261,7 +293,14 @@ def _metadata(skill_root: Path) -> tuple:
         _list_values(meta.get("complete_tags_cn")),
     ):
         raw_tags.extend(values)
-    return skill_id, description, display_name, version, tuple(dict.fromkeys(raw_tags))
+    return (
+        skill_id,
+        description,
+        display_name,
+        version,
+        tuple(dict.fromkeys(raw_tags)),
+        extra_note,
+    )
 
 
 # ── skills 发现 ────────────────────────────────────────────────────────────
@@ -283,7 +322,9 @@ def _discover_skills(root: Path, source: str) -> list:
         skill_file = skill_path / "SKILL.md"
         if not skill_file.is_file() or skill_file.resolve().parent != skill_path:
             continue
-        skill_id, description, display_name, version, tags = _metadata(skill_path)
+        skill_id, description, display_name, version, tags, extra_note = _metadata(
+            skill_path
+        )
         if not SKILL_ID_RE.fullmatch(skill_id) or skill_id == "auto":
             continue
         discovered.append(
@@ -295,6 +336,7 @@ def _discover_skills(root: Path, source: str) -> list:
                 display_name=display_name,
                 version=version,
                 tags=tags,
+                extra_note=extra_note,
             )
         )
     return discovered
@@ -419,16 +461,35 @@ def is_prompt_writing_skill(skill_id) -> bool:
     return any(marker in value for marker in PROMPT_WRITING_SKILL_MARKERS)
 
 
-def default_extra_note(skill_id=None) -> str:
+def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> str:
     """「附加说明」的默认值。
 
-    - 「自动」或未指定：默认填充强调说明（H3 场景以产出提示词为主）；
-    - 提示词书写类 skills：默认填充强调说明；
-    - 其余风格类 skills（会输出分镜/制作方案等多段内容）：留空，避免误导模型。
+    取值优先级：
+    1. skills 自身在 SKILL.md front matter / meta.yaml 中声明的 `extra-note`；
+    2. 内置映射表 SKILL_EXTRA_NOTES（Qwen-Image 类用 JSON 强调、h3-prompt-writing 用
+       仅提示词强调）；
+    3. 其余「提示词书写」类 skills → PROMPT_ONLY_NOTE；
+    4. 「自动」→ GENERIC_ONLY_NOTE（模型可能选中任意 skills，含 JSON 输出类）；
+    5. 其余风格类 skills → 空（它们会输出分镜/制作方案等多段内容，强加会误导模型）。
     """
     value = str(skill_id or "").strip()
     if not value or value == AUTO_SELECTION:
-        return PROMPT_ONLY_NOTE
+        return GENERIC_ONLY_NOTE
+
+    # 1. skills 自带声明优先
+    try:
+        for spec in discover_skill_registry(builtin_root, custom_root):
+            if spec.id.casefold() == value.casefold() and spec.extra_note:
+                return spec.extra_note
+    except Exception:
+        pass
+
+    # 2. 内置映射表（按 id 精确匹配，大小写不敏感）
+    for key, note in SKILL_EXTRA_NOTES.items():
+        if key.casefold() == value.casefold():
+            return note
+
+    # 3. 其余提示词书写类 skills
     return PROMPT_ONLY_NOTE if is_prompt_writing_skill(value) else ""
 
 
@@ -629,7 +690,10 @@ if (
 
     @PromptServer.instance.routes.post("/ytmmi/skills/list")
     async def ytmmi_skills_list(request):
-        """返回已发现的 skills 列表（id/描述/来源/版本），供前端刷新下拉。"""
+        """返回已发现的 skills 列表（id/描述/来源/版本/默认附加说明），供前端刷新下拉。
+
+        前端据此在切换 skills 时套用对应的默认「附加说明」（用户自定义内容不动）。
+        """
         try:
             registry = discover_skill_registry()
             return web.json_response(
@@ -643,9 +707,13 @@ if (
                             "display_name": spec.display_name,
                             "version": spec.version,
                             "tags": list(spec.tags),
+                            # 该 skills 对应的默认「附加说明」（可能为空）
+                            "extra_note": default_extra_note(spec.id),
                         }
                         for spec in registry
                     ],
+                    # 「自动」选项对应的通用强调说明
+                    "auto_extra_note": GENERIC_ONLY_NOTE,
                 }
             )
         except Exception as exc:
@@ -702,12 +770,14 @@ class SkillsManagerNode:
                 "附加说明": (
                     "STRING",
                     {
-                        # 默认填充「仅输出提示词」强调说明（可自行删除或改写）
-                        "default": default_extra_note(default_skill_id()),
+                        # 默认与「选择skills」的默认值（自动）对应：通用强调说明。
+                        # 具体 skills 的强调说明由前端按 skills 自动套用（可删除或改写）。
+                        "default": default_extra_note(AUTO_SELECTION),
                         "multiline": True,
                         "placeholder": "追加到 skills 文本末尾的补充说明（可清空）",
-                        "tooltip": "默认已填充「仅输出提示词正文、不要输出说明」的强调说明；"
-                        "切换到非提示词类 skills 时前端会自动清空，也可手动删除或改写",
+                        "tooltip": "默认已按所选 skills 填充对应的输出强调说明"
+                        "（如仅输出提示词正文、或仅输出严格 JSON）；切换 skills 时前端自动替换，"
+                        "也可手动删除或改写",
                     },
                 ),
             },
@@ -785,6 +855,9 @@ __all__ = [
     "MODE_AUTO",
     "normalize_mode",
     "PROMPT_ONLY_NOTE",
+    "JSON_ONLY_NOTE",
+    "GENERIC_ONLY_NOTE",
+    "SKILL_EXTRA_NOTES",
     "PROMPT_WRITING_SKILL_MARKERS",
     "is_prompt_writing_skill",
     "default_extra_note",

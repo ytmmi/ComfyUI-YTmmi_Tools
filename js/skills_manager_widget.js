@@ -7,8 +7,9 @@ import { app } from "../../scripts/app.js";
  *   skills/（内置）与 custom_skills/（自定义）目录，并更新「选择skills」下拉选项；
  * - 下拉选项更新使用「原地修改 values 数组」（splice），兼容新前端
  *   Vue 响应式渲染（整体替换 options 对象会断开响应式引用导致不刷新）；
- * - 「附加说明」默认填充「仅输出提示词正文」的强调说明（来自 Python 端 default）：
- *   切换到非提示词类 skills 时自动清空，切回时自动恢复；
+ * - 「附加说明」按所选 skills 套用对应默认强调说明（后端按 skills 返回 extra_note：
+ *   Qwen-Image 类为「只输出 JSON」、h3-prompt-writing 为「只输出提示词正文」、
+ *   自动为通用强调、风格类为空）；切换 skills 时自动替换；
  *   若用户已改成自定义内容则一律不动，避免覆盖用户输入。
  */
 app.registerExtension({
@@ -16,47 +17,53 @@ app.registerExtension({
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData.name !== "SkillsManagerNode") return;
 
-    // 提示词书写类 skills 的识别标记（与 Python 端 PROMPT_WRITING_SKILL_MARKERS 一致）
-    const PROMPT_WRITING_MARKERS = ["prompt-writing", "prompt_writing"];
     const AUTO_SELECTION = "自动";
 
-    // 「附加说明」的默认强调说明：直接取 Python 端 INPUT_TYPES 的 default，避免硬编码漂移
-    const defaultNote =
+    // 「附加说明」的兜底默认值：取 Python 端 INPUT_TYPES 的 default（自动模式通用强调）
+    const fallbackNote =
       nodeData?.input?.optional?.["附加说明"]?.[1]?.default ?? "";
 
-    const isPromptWritingSkill = function (value) {
-      const v = String(value || "").trim().toLowerCase();
-      if (!v) return false;
-      return PROMPT_WRITING_MARKERS.some((m) => v.includes(m));
+    // 各 skills 对应的默认强调说明（由后端 /ytmmi/skills/list 填充）。
+    // 同时记录所有「已知默认值」，用于判断控件内容是否为默认值（而非用户自定义）。
+    let noteBySkill = {};
+    let autoNote = fallbackNote;
+    const knownDefaults = new Set();
+    if (fallbackNote.trim()) knownDefaults.add(fallbackNote.trim());
+
+    const registerDefault = function (note) {
+      const v = String(note ?? "").trim();
+      if (v) knownDefaults.add(v);
+    };
+
+    // 期望的强调说明：自动模式用通用强调，具体 skills 用其后端 extra_note
+    const expectedNote = function (skillValue) {
+      const v = String(skillValue ?? "").trim();
+      if (!v || v === AUTO_SELECTION) return autoNote;
+      return noteBySkill[v] ?? "";
+    };
+
+    // 内容是否属于「已知默认值」（含空串）——用于区分默认值与用户自定义
+    const isKnownDefault = function (value) {
+      const v = String(value ?? "").trim();
+      return v === "" || knownDefaults.has(v);
     };
 
     /**
      * 同步「附加说明」：
-     * - 需要强调（自动 / 提示词书写类）且当前为空 → 填入默认强调说明；
-     * - 不需要强调且当前恰好等于默认强调说明（用户未改）→ 清空；
-     * - 用户自定义的内容永不覆盖。
+     * - 当前内容是已知默认值（含空）→ 替换为所选 skills 期望的强调说明；
+     * - 用户自定义内容 → 永不覆盖。
      */
     const syncExtraNote = function (node) {
-      if (!defaultNote) return;
       const skillsWidget = node.widgets?.find((w) => w.name === "选择skills");
       const noteWidget = node.widgets?.find((w) => w.name === "附加说明");
       if (!noteWidget) return;
 
       const value = String(noteWidget.value ?? "");
-      const wantsNote =
-        skillsWidget?.value === AUTO_SELECTION ||
-        isPromptWritingSkill(skillsWidget?.value);
+      if (!isKnownDefault(value)) return; // 用户自定义内容，不动
 
-      if (wantsNote) {
-        if (!value.trim()) {
-          noteWidget.value = defaultNote;
-          node.setDirtyCanvas?.(true);
-        }
-        return;
-      }
-      // 不需要强调：仅当内容就是默认说明（未被用户改写）时才清空
-      if (value.trim() === defaultNote.trim()) {
-        noteWidget.value = "";
+      const wanted = expectedNote(skillsWidget?.value);
+      if (value.trim() !== String(wanted ?? "").trim()) {
+        noteWidget.value = wanted;
         node.setDirtyCanvas?.(true);
       }
     };
@@ -97,6 +104,21 @@ app.registerExtension({
           return;
         }
         const names = data.names || [];
+
+        // 记录每个 skills 的默认强调说明，并登记所有已知默认值
+        const nextNoteBySkill = {};
+        for (const item of data.skills || []) {
+          if (!item?.id) continue;
+          const note = String(item.extra_note ?? "");
+          nextNoteBySkill[item.id] = note;
+          registerDefault(note);
+        }
+        noteBySkill = nextNoteBySkill;
+        if (data.auto_extra_note !== undefined) {
+          autoNote = String(data.auto_extra_note ?? "");
+          registerDefault(autoNote);
+        }
+
         if (!names.length) {
           alert(
             "未发现任何 skills。\n" +
@@ -104,6 +126,8 @@ app.registerExtension({
           );
         }
         setComboOptions(combo, withCurrentValue(combo, names));
+        // 选项更新后同步「附加说明」，使新选中 skills 的强调说明立即生效
+        syncExtraNote(this);
         this.setDirtyCanvas(true);
         if (names.length) {
           alert(`已发现 ${names.length} 个 skills，请在「选择skills」下拉中选择`);

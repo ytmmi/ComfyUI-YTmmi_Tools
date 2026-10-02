@@ -1,0 +1,8 @@
+display-name-zh: Qwen图像文生图提示词
+display-name-en: Qwen-Image T2I Prompt
+version: 1.0.0
+tag-cn: 提示词 / 图像
+tag-en: Prompt / Image
+summary-cn: 把简短或模糊的文生图需求改写为一段英文画面描述（观察者视角）并给出宽高比，输出严格 JSON（rewritten_prompt + wh_ratio）。
+summary-en: Rewrite a text-to-image request into one long English observational paragraph plus an aspect ratio, returning strict JSON with rewritten_prompt and wh_ratio.
+source: user

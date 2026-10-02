@@ -1,0 +1,8 @@
+display-name-zh: Qwen图像编辑提示词
+display-name-en: Qwen-Image Edit Prompt
+version: 1.0.0
+tag-cn: 提示词 / 图像编辑
+tag-en: Prompt / Image Editing
+summary-cn: 把模糊的图片编辑指令改写为精确可执行的编辑指令（属性解耦、保持输入保真），并判定 wh_ratio 与 ratio_follow，输出严格 JSON。
+summary-en: Rewrite a vague image-editing instruction into a precise, actionable editing directive with attribute disentanglement and input fidelity, deciding wh_ratio and ratio_follow and returning strict JSON.
+source: user

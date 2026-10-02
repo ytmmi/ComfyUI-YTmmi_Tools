@@ -95,31 +95,45 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | `模式` | COMBO | auto | `h3-prompt-writing` 的参考资料选择：`auto` 同时提供基础与全参考两份指南；`H3-ref2va` 只用全参考指南；`H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` 只用基础指南 |
 | `包含参考文件` | BOOLEAN | True | 是否一并读取 skills 的 `references/` 参考资料（仅「具体 skills」模式生效） |
 | `最大字符数` | INT | 72000 | 指导文本字符上限，超出后不再追加参考资料 |
-| `附加说明` | STRING | 见下 | 追加到 skills 文本末尾的补充说明；**默认已填充「仅输出提示词正文、不要输出说明」的强调说明**，可自行删除或改写 |
+| `附加说明` | STRING | 按 skills | 追加到 skills 文本末尾的补充说明；**按所选 skills 自动填充对应的输出强调**（JSON 类→只输出 JSON；提示词类→只输出提示词正文；自动→通用），可自行删除或改写 |
 
 输出：`skills`（完整指导文本或自动清单）、`skills名称`（所选 skills 的 id，自动模式为 `自动`）、`skills目录`（全部已发现 skills 的清单）。
 
-### 附加说明的默认强调（仅输出提示词）
+### 内置 skills
 
-「提示词书写」类 skills（如 `h3-prompt-writing`）容易在提示词前后附带说明、解释、开场白、Markdown 代码块围栏等无关文字。为此「附加说明」文本框**默认填充**一条强调说明：
+`skills/` 内置 11 个 skills：
 
-```
-【输出要求】只输出最终的提示词正文本身，不要输出任何说明、解释、前言、后记、
-标题、Markdown 代码块围栏或分隔线，也不要复述本条要求。
-```
+| skills | 说明 |
+|---|---|
+| `h3-prompt-writing` | MiniMax H3 视频提示词书写（T2VA/I2VA/FL2VA/L2VA/Ref2VA） |
+| `qwen-image-t2i-prompt` | Qwen-Image 2.1 文生图提示词改写（八步观察者视角描述 + `wh_ratio`） |
+| `qwen-image-edit-prompt` | Qwen-Image 2.1 图像编辑提示词改写（属性解耦 + `wh_ratio`/`ratio_follow`） |
+| 其余 8 个 | MiniMax H3 官方风格类 skills（3D 动画、品牌宣传、纸艺定格等） |
+
+其中 `qwen-image-t2i-prompt` 与 `qwen-image-edit-prompt` 来自用户提供的 Qwen-Image 2.1 系统提示词，已改写为 skills 形式：`SKILL.md` 为工作流摘要，**完整原始系统提示词逐字保存在 `references/` 下**（SHA256 与源文件一致），由 skills管理器一并加载。
+
+### 附加说明的默认强调（按 skills 区分）
+
+不同 skills 的输出格式不同，因此「附加说明」文本框会**按所选 skills 自动填充对应的输出强调**：
+
+| skills | 默认强调说明 |
+|---|---|
+| `qwen-image-t2i-prompt` / `qwen-image-edit-prompt` | **只输出一个严格合法的 JSON 对象**（单行、无围栏、无说明） |
+| `h3-prompt-writing` | **只输出最终的提示词正文本身**（不要说明、前言、标题、代码块围栏） |
+| `自动` | 通用强调：只输出最终结果并严格遵循所选 skills 的输出格式，不要说明性文字 |
+| 其余风格类 skills | 留空（它们会输出分镜、制作方案等多段内容） |
+
+> **为什么 JSON 类不能用「只输出提示词正文」**：这两份提示词的输出契约是严格 JSON（`rewritten_prompt` + `wh_ratio` 等字段），若强调"只输出提示词正文"会与 JSON 契约直接冲突，导致模型输出裸文本而下游解析失败。
 
 行为规则：
 
-| 当前 `选择skills` | `附加说明` 当前值 | 结果 |
-|---|---|---|
-| `自动` / 提示词书写类 | 空 | 自动填充强调说明 |
-| `自动` / 提示词书写类 | 已填（默认或自定义） | 保持不动 |
-| 风格类 skills | 恰好是默认强调说明 | 自动清空（避免误导模型） |
-| 风格类 skills | 空 / 用户自定义 | 保持不动 |
+| 当前 `附加说明` 值 | 结果 |
+|---|---|
+| 空 / 等于任一已知默认强调 | 自动替换为所选 skills 对应的强调说明 |
+| 用户自定义内容 | **永不覆盖** |
 
 - **可随时删除**：清空文本框即完全不追加任何说明（测试覆盖）。
-- **不会覆盖用户输入**：一旦你改写为自定义内容，前端在任何情况下都不再改动它。
-- 自动清空只针对「风格类 skills + 内容恰好等于默认说明」这一种情况——因为这些 skills 会输出分镜、制作方案等多段内容，强加"仅输出提示词"会误导模型。
+- skills 可在 `SKILL.md` front matter 用 `extra-note:` 自行声明默认强调，优先级高于内置映射表——新增 JSON 输出类 skills 时无需改代码。
 
 「自定义LLM」在 `skills` 接入自动清单时，额外提供三个多轮控制参数：
 
@@ -225,7 +239,7 @@ ComfyUI-YTmmi_Tools/
 │   │   └── save_json_file_node.py      # 保存JSON文件
 │   └── minimax_h3/                  # YTmmi/minimax-h3 分类
 │       └── h3_sigma_refiner_node.py    # H3 低噪细节精修
-├── skills/                          # 内置 skills（9 个，来自 MiniMax H3 官方）
+├── skills/                          # 内置 skills（11 个：MiniMax H3 官方 9 个 + Qwen-Image 2.1 提示词 2 个）
 ├── custom_skills/                   # 自定义 skills（用户自行添加）
 ├── js/
 │   ├── auto_fill_widget.js         # 前端扩展：执行后自动回填控件值
@@ -249,7 +263,8 @@ ComfyUI-YTmmi_Tools/
   - **H3 低噪细节精修**（H3 Sigma Refiner）节点移植自该仓库
 - [ComfyUI_Qwen_H3_Prompt](https://github.com/chflame163/ComfyUI_Qwen_H3_Prompt.git) — 在 ComfyUI 内使用本地 Qwen3.8 驱动 Minimax H3 官方 skills 生成 H3 提示词
   - **skills管理器** 与 **自定义LLM 的 skills 接口** 参考该仓库的 skills 管理方式实现
-  - `skills/` 目录中的 9 个 skills 来自 [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) 官方 skills
+  - `skills/` 目录中的 9 个 MiniMax H3 skills 来自 [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) 官方 skills
+- **Qwen-Image 2.1 提示词改写**（`qwen-image-t2i-prompt`、`qwen-image-edit-prompt`）— 由用户提供的 Qwen-Image 2.1 系统提示词改写为 skills；原始系统提示词逐字保留在各自的 `references/` 下（SHA256 与源文件一致）
 
 ## 许可证
 
