@@ -17,6 +17,8 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 - api_key：接口密钥
 - base_url：接口地址（OpenAI 格式，如 https://api.openai.com/v1）
 - model：模型名称（下拉选择，可点击「获取模型」刷新）
+- skills：skills 指导文本（可选，字符串端口）。接入「skills管理器」节点的 skills 输出，
+  或任意文本源（如手写 skills 内容）；接入后作为系统消息的一部分发送给模型
 - system_prompt：系统提示词（可选）
 - prompt：用户提示词（要求、问题等）
 - temperature：采样温度（0~2）
@@ -207,7 +209,7 @@ class CustomLLMNode:
     """自定义在线 LLM（OpenAI 兼容接口）。"""
 
     CATEGORY = "YTmmi/text"
-    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型）、温度/最大token/top_p/种子'
+    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型）、温度/最大token/top_p/种子'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -232,6 +234,8 @@ class CustomLLMNode:
                 "最大token数": ("INT", {"default": 1024, "min": 1, "max": 32768}),
             },
             "optional": {
+                # skills 指导文本：由「skills管理器」节点的 skills 输出接入（字符串端口）
+                "skills": ("STRING", {"forceInput": True}),
                 "核采样（top_p）": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "种子": ("INT", {"default": -1, "min": -1, "max": 0x7FFFFFFF}),
                 # 图片输入口：图片0 ~ 图片8（IMAGE 类型）。前端默认只显示「图片0」，
@@ -245,7 +249,7 @@ class CustomLLMNode:
     FUNCTION = "chat"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)
-    SEARCH_ALIASES = ["llm", "chat", "大模型", "ai对话", "openai"]
+    SEARCH_ALIASES = ["llm", "chat", "大模型", "ai对话", "openai", "skills", "技能"]
 
     def chat(
         self,
@@ -255,6 +259,7 @@ class CustomLLMNode:
         model = kwargs.get("选择模型", "")
         system_prompt = kwargs.get("系统提示词", "")
         prompt = kwargs.get("提示词", "")
+        skills = kwargs.get("skills", "")
         temperature = kwargs.get("温度", 0.7)
         max_tokens = kwargs.get("最大token数", 1024)
         top_p = kwargs.get("核采样（top_p）", 1.0)
@@ -321,8 +326,11 @@ class CustomLLMNode:
                 images.append(img)
 
         messages = []
-        if str(system_prompt).strip():
-            messages.append({"role": "system", "content": str(system_prompt)})
+        # skills 指导文本与系统提示词合并为同一条 system 消息：
+        # skills 在前（作为模型指导），系统提示词在后（用户自身设定优先）
+        system_text = self._merge_system_text(skills, system_prompt)
+        if system_text:
+            messages.append({"role": "system", "content": system_text})
         if images:
             # 多模态格式：content 为数组，文本 + 图片（JPEG base64 data URL）。
             # 适配 DeepSeek V4.1 Flash（模型 id：deepseek-flash）等支持图片输入的
@@ -378,6 +386,20 @@ class CustomLLMNode:
             raise RuntimeError("自定义LLM：接口返回结果中没有 choices 字段")
         content = choices[0].get("message", {}).get("content", "")
         return (content,)
+
+    @staticmethod
+    def _merge_system_text(skills, system_prompt) -> str:
+        """合并 skills 指导文本与系统提示词为一条 system 消息内容。
+
+        - 两者都为空 → 返回空串（不发送 system 消息）
+        - 仅其一非空 → 返回该内容
+        - 都非空 → skills 在前，系统提示词在后，中间以分隔标题隔开
+        """
+        skills_text = str(skills).strip() if skills is not None else ""
+        prompt_text = str(system_prompt).strip() if system_prompt is not None else ""
+        if skills_text and prompt_text:
+            return f"{skills_text}\n\n# 系统提示词\n\n{prompt_text}"
+        return skills_text or prompt_text
 
     @staticmethod
     def _tensor_to_data_url(tensor):

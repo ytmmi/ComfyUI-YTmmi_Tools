@@ -69,6 +69,11 @@ try:
         NODE_CLASS_MAPPINGS as KEY_STORAGE_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as KEY_STORAGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.utility.skills_manager_node import (
+        SkillsManagerNode,
+        NODE_CLASS_MAPPINGS as SKILLS_MANAGER_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SKILLS_MANAGER_NODE_DISPLAY_NAME_MAPPINGS,
+    )
     from .node.minimax_h3.h3_sigma_refiner_node import (
         H3SigmaRefinerNode,
         NODE_CLASS_MAPPINGS as H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
@@ -145,6 +150,11 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as KEY_STORAGE_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as KEY_STORAGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.utility.skills_manager_node import (
+        SkillsManagerNode,
+        NODE_CLASS_MAPPINGS as SKILLS_MANAGER_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SKILLS_MANAGER_NODE_DISPLAY_NAME_MAPPINGS,
+    )
     from node.minimax_h3.h3_sigma_refiner_node import (
         H3SigmaRefinerNode,
         NODE_CLASS_MAPPINGS as H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
@@ -169,6 +179,7 @@ NODE_CLASS_MAPPINGS = {
     **PREVIEW_VIDEO_NODE_CLASS_MAPPINGS,
     **DISPLAY_TEXT_NODE_CLASS_MAPPINGS,
     **KEY_STORAGE_NODE_CLASS_MAPPINGS,
+    **SKILLS_MANAGER_NODE_CLASS_MAPPINGS,
     **H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
 }
 
@@ -187,6 +198,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **PREVIEW_VIDEO_NODE_DISPLAY_NAME_MAPPINGS,
     **DISPLAY_TEXT_NODE_DISPLAY_NAME_MAPPINGS,
     **KEY_STORAGE_NODE_DISPLAY_NAME_MAPPINGS,
+    **SKILLS_MANAGER_NODE_DISPLAY_NAME_MAPPINGS,
     **H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
@@ -208,5 +220,6 @@ __all__ = [
     "PreviewVideoNode",
     "DisplayTextNode",
     "KeyStorageNode",
+    "SkillsManagerNode",
     "H3SigmaRefinerNode",
 ]
