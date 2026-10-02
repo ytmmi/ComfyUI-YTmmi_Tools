@@ -54,6 +54,17 @@ DEFAULT_SKILL_ID = "h3-prompt-writing"
 # H3 模式选项：auto 时同时提供基础模式与全参考模式两份指南
 MODE_OPTIONS = ("auto", "t2va", "i2va", "fl2va", "l2va", "ref2va")
 
+# 「选择skills」中的自动选项：选择后不预先加载任何 skills 正文，
+# 改由下游节点（自定义LLM）与模型多轮按需读取（渐进式披露）
+AUTO_SELECTION = "自动"
+
+# 自动模式的协议标记：下游节点据此识别「按需读取」模式。
+# 该标记必须出现在 skills 文本的最前面，且 skills id 不含尖括号，不会冲突。
+AUTO_MARKER = "<<<YTMMI_SKILLS_AUTO>>>"
+
+# 按需读取允许的文件扩展名（仅文本类指导文件，不执行任何内容）
+READABLE_SUFFIXES = {".md", ".txt", ".yaml", ".yml", ".json"}
+
 # 读取参考资料时的默认字符上限
 MAX_CHARS_DEFAULT = 72000
 
@@ -437,6 +448,115 @@ def skill_instructions(
     return "\n\n".join(parts)
 
 
+def skill_files(skill_id: str, builtin_root=None, custom_root=None) -> list:
+    """列出某个 skills 目录下可被按需读取的文件（相对路径，正斜杠分隔）。"""
+    root = _skill_path(skill_id, builtin_root, custom_root)
+    files = []
+    for path in sorted(root.glob("**/*"), key=lambda item: item.as_posix()):
+        if not path.is_file() or path.suffix.lower() not in READABLE_SUFFIXES:
+            continue
+        resolved = path.resolve()
+        # 安全校验：文件必须位于该 skills 目录内
+        if root not in resolved.parents:
+            continue
+        files.append(path.relative_to(root).as_posix())
+    return files
+
+
+def read_skill_file(
+    skill_id: str,
+    relative_path: str,
+    max_chars: int = MAX_CHARS_DEFAULT,
+    builtin_root=None,
+    custom_root=None,
+) -> str:
+    """按需读取某个 skills 内的单个文件（渐进式披露用）。
+
+    仅允许读取该 skills 目录内的文本类文件，且拒绝路径穿越（如 ../）。
+    """
+    root = _skill_path(skill_id, builtin_root, custom_root)
+
+    rel = str(relative_path or "").strip().replace("\\", "/").lstrip("/")
+    if not rel:
+        raise ValueError("skills管理器：未指定要读取的文件路径")
+
+    candidate = (root / rel).resolve()
+    # 安全校验：解析后的真实路径必须位于该 skills 目录内（防 ../ 穿越与符号链接越界）
+    if candidate != root and root not in candidate.parents:
+        raise PermissionError(
+            f"skills管理器：拒绝读取 skills 目录之外的文件「{relative_path}」"
+        )
+    if not candidate.is_file():
+        raise FileNotFoundError(
+            f"skills管理器：skills「{skill_id}」中不存在文件「{relative_path}」"
+        )
+    if candidate.suffix.lower() not in READABLE_SUFFIXES:
+        raise ValueError(
+            f"skills管理器：不支持读取该类型文件「{relative_path}」"
+            f"（仅支持 {'/'.join(sorted(READABLE_SUFFIXES))}）"
+        )
+
+    text = _read(candidate)
+    limit = max(1, int(max_chars))
+    if len(text) > limit:
+        text = text[:limit] + f"\n\n…（文件超过 {limit} 字符，已截断）"
+    return text
+
+
+def build_skills_manifest(
+    builtin_root=None, custom_root=None, max_chars: int = MAX_CHARS_DEFAULT
+) -> str:
+    """构建「自动」模式下发给模型的 skills 清单与读取协议说明。
+
+    只包含 skills 的 id 与描述（不含正文），由模型按需请求读取正文，
+    实现渐进式披露（progressive disclosure）。
+    """
+    registry = discover_skill_registry(builtin_root, custom_root)
+    if not registry:
+        return (
+            f"{AUTO_MARKER}\n\n# skills\n\n"
+            "（未发现任何 skills，请在 skills/ 或 custom_skills/ 下添加含 SKILL.md 的子目录）"
+        )
+
+    lines = [
+        AUTO_MARKER,
+        "",
+        "# skills",
+        "",
+        "你可以使用以下 skills 来完成用户的请求。下方只列出 skills 的名称与用途，"
+        "正文并未加载。",
+        "",
+    ]
+    for spec in registry:
+        label = f"（{spec.display_name}）" if spec.display_name else ""
+        lines.append(f"- {spec.id}{label}: {spec.description}")
+    lines.extend(
+        [
+            "",
+            "# 按需读取协议",
+            "",
+            "当你需要某个 skills 的正文时，**单独输出一行**以下指令（不要加其它内容）：",
+            "",
+            "READ: <skills名称>",
+            "",
+            "当你需要读取该 skills 内的某个参考文件时，**单独输出一行**：",
+            "",
+            "READ: <skills名称>/<相对路径>",
+            "",
+            "每次只读取一个文件。系统会返回文件内容，然后你可以继续请求或直接给出最终答案。",
+            "如果你已经可以直接完成用户的请求，就不需要读取任何 skills，直接输出结果即可。",
+            "",
+            f"读取内容单次上限：{max(1, int(max_chars))} 字符。",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def is_auto_skills_text(text) -> bool:
+    """判断 skills 文本是否为「自动」模式（渐进式披露）的清单。"""
+    return isinstance(text, str) and text.lstrip().startswith(AUTO_MARKER)
+
+
 # ── 后端路由：供前端「刷新skills」按钮更新下拉选项 ──────────────────────────
 
 if (
@@ -474,18 +594,22 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills，输出所选 skills 的完整指导文本，供自定义LLM等节点的 skills 输入接口使用'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本'
 
     @classmethod
     def INPUT_TYPES(cls):
         names = skill_names()
+        # 「自动」置于首位：选择后不预先加载 skills 正文，交由下游节点与模型多轮按需读取
+        options = [AUTO_SELECTION, *names]
         return {
             "required": {
                 "选择skills": (
-                    names or [""],
+                    options,
                     {
-                        "default": default_skill_id(),
-                        "tooltip": "skills/ 与 custom_skills/ 中已发现的 skills；"
+                        "default": AUTO_SELECTION,
+                        "tooltip": "选择「自动」时不预先加载任何 skills 正文，"
+                        "由自定义LLM与模型多轮按需读取（渐进式披露，最省上下文）；"
+                        "选择具体 skills 则直接输出该 skills 的完整指导文本；"
                         "点击节点上的「刷新skills」按钮可重新扫描",
                     },
                 ),
@@ -544,8 +668,15 @@ class SkillsManagerNode:
         max_chars = int(kwargs.get("最大字符数", MAX_CHARS_DEFAULT))
         extra = str(kwargs.get("附加说明", "") or "").strip()
 
+        # 「自动」：只输出 skills 清单与读取协议，不加载任何正文（渐进式披露）
+        if skill_id == AUTO_SELECTION:
+            text = build_skills_manifest(max_chars=max_chars)
+            if extra:
+                text = f"{text}\n\n# 附加说明\n\n{extra}"
+            return (text, AUTO_SELECTION, skill_catalog())
+
         if not skill_id:
-            # 下拉为空时回退到默认 skills，便于用户直接使用
+            # 下拉为空（未选择）时回退到默认 skills，便于用户直接使用
             skill_id = default_skill_id()
         if not skill_id:
             raise ValueError(
@@ -576,6 +707,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 __all__ = [
     "SkillsManagerNode",
     "SkillSpec",
+    "AUTO_SELECTION",
+    "AUTO_MARKER",
+    "READABLE_SUFFIXES",
     "BUILTIN_SKILLS_DIR",
     "CUSTOM_SKILLS_DIR",
     "MODE_OPTIONS",
@@ -586,6 +720,10 @@ __all__ = [
     "skill_catalog",
     "skill_signature",
     "skill_instructions",
+    "skill_files",
+    "read_skill_file",
+    "build_skills_manifest",
+    "is_auto_skills_text",
     "default_skill_id",
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",

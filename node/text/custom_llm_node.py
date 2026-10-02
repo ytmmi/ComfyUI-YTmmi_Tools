@@ -35,6 +35,7 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 
 import base64
 import io
+import re
 
 import torch
 
@@ -73,12 +74,56 @@ except Exception:
             vault_names = None
             load_vault = None
 
+# 复用 skills管理器的按需读取能力（渐进式披露），同样做多级导入兜底
+try:
+    from ..utility.skills_manager_node import (
+        is_auto_skills_text,
+        read_skill_file,
+        skill_files,
+        skill_names,
+    )
+except Exception:
+    try:
+        from node.utility.skills_manager_node import (
+            is_auto_skills_text,
+            read_skill_file,
+            skill_files,
+            skill_names,
+        )
+    except Exception:
+        try:
+            from skills_manager_node import (
+                is_auto_skills_text,
+                read_skill_file,
+                skill_files,
+                skill_names,
+            )
+        except Exception:
+            is_auto_skills_text = None
+            read_skill_file = None
+            skill_files = None
+            skill_names = None
+
 # 预设模型列表：默认不预设（空），模型列表完全由「获取模型」按钮从接口拉取。
 # 之前预设的 gpt-4o/deepseek-chat 等 12 个模型已按用户要求移除。
 DEFAULT_MODELS: list = []
 
 # 图片输入口总数：图片0 ~ 图片8，前端 JS 按此值同步动态端口（默认只显示 1 个）
 MAX_IMAGES = 9
+
+# ── 渐进式披露（文本协议多轮按需读取）────────────────────────────────────
+# 当 skills 输入为「自动」清单时，模型可输出单行 READ: 指令请求读取某个
+# skills 的正文或参考文件，节点读取后追加到对话中继续请求，直到模型给出
+# 最终答案。不依赖接口的 tools/function calling 支持，兼容性最好。
+READ_DIRECTIVE_RE = re.compile(
+    r"^\s*READ\s*[:：]\s*(?P<target>[^\s]+)\s*$", re.IGNORECASE | re.MULTILINE
+)
+# 单次执行允许的最大往返轮数（防止模型不守协议导致死循环）
+MAX_SKILLS_ROUNDS_DEFAULT = 8
+# 单次读取的字符上限
+SKILLS_READ_MAX_CHARS_DEFAULT = 72000
+# 累计注入的 skills 内容上限（防止上下文无限膨胀）
+SKILLS_TOTAL_CHARS_DEFAULT = 300000
 
 # 获取模型成功后的接口模型列表缓存（进程内）。
 # 作用：ComfyUI 后端会校验 COMBO 输入值必须存在于 INPUT_TYPES 的选项列表中，
@@ -234,8 +279,39 @@ class CustomLLMNode:
                 "最大token数": ("INT", {"default": 1024, "min": 1, "max": 32768}),
             },
             "optional": {
-                # skills 指导文本：由「skills管理器」节点的 skills 输出接入（字符串端口）
+                # skills 指导文本：由「skills管理器」节点的 skills 输出接入（字符串端口）。
+                # 接入「自动」清单时进入多轮按需读取（渐进式披露）。
                 "skills": ("STRING", {"forceInput": True}),
+                "skills最大轮数": (
+                    "INT",
+                    {
+                        "default": MAX_SKILLS_ROUNDS_DEFAULT,
+                        "min": 1,
+                        "max": 30,
+                        "step": 1,
+                        "tooltip": "skills 为「自动」时的最大读取往返轮数，防止模型不守协议导致死循环",
+                    },
+                ),
+                "skills单次读取上限": (
+                    "INT",
+                    {
+                        "default": SKILLS_READ_MAX_CHARS_DEFAULT,
+                        "min": 1000,
+                        "max": 400000,
+                        "step": 1000,
+                        "tooltip": "单次读取 skills 文件的字符上限，超出部分截断",
+                    },
+                ),
+                "skills累计上限": (
+                    "INT",
+                    {
+                        "default": SKILLS_TOTAL_CHARS_DEFAULT,
+                        "min": 1000,
+                        "max": 2000000,
+                        "step": 1000,
+                        "tooltip": "多轮累计注入的 skills 内容字符上限，防止上下文无限膨胀",
+                    },
+                ),
                 "核采样（top_p）": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "种子": ("INT", {"default": -1, "min": -1, "max": 0x7FFFFFFF}),
                 # 图片输入口：图片0 ~ 图片8（IMAGE 类型）。前端默认只显示「图片0」，
@@ -343,6 +419,56 @@ class CustomLLMNode:
         else:
             messages.append({"role": "user", "content": str(prompt)})
 
+        # skills 为「自动」清单时，进入多轮按需读取（渐进式披露）循环；
+        # 否则单轮请求，行为与之前一致。
+        if is_auto_skills_text is not None and is_auto_skills_text(skills):
+            return self._chat_with_skills_disclosure(
+                url=url,
+                headers=headers,
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                seed=seed,
+                images=images,
+                max_rounds=int(kwargs.get("skills最大轮数", MAX_SKILLS_ROUNDS_DEFAULT)),
+                read_max_chars=int(
+                    kwargs.get("skills单次读取上限", SKILLS_READ_MAX_CHARS_DEFAULT)
+                ),
+                total_max_chars=int(
+                    kwargs.get("skills累计上限", SKILLS_TOTAL_CHARS_DEFAULT)
+                ),
+            )
+
+        content = self._post_chat(
+            url=url,
+            headers=headers,
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            seed=seed,
+            images=images,
+        )
+        return (content,)
+
+    # ── 单轮请求与响应解析 ────────────────────────────────────────────────
+
+    def _post_chat(
+        self,
+        url,
+        headers,
+        messages,
+        model,
+        temperature,
+        max_tokens,
+        top_p,
+        seed,
+        images,
+    ) -> str:
+        """发送一次 chat/completions 请求并返回助手文本。"""
         payload = {
             "model": str(model),
             "messages": messages,
@@ -384,8 +510,176 @@ class CustomLLMNode:
         choices = data.get("choices") or []
         if not choices:
             raise RuntimeError("自定义LLM：接口返回结果中没有 choices 字段")
-        content = choices[0].get("message", {}).get("content", "")
-        return (content,)
+        return choices[0].get("message", {}).get("content", "") or ""
+
+    # ── 渐进式披露：多轮按需读取 skills ───────────────────────────────────
+
+    @staticmethod
+    def parse_read_directive(text):
+        """从模型输出中解析单行 READ: 指令。
+
+        返回 (指令目标, 去掉指令后的剩余文本)：
+        - 无指令 → (None, 原文)
+        - 有指令 → (目标, 该行之外的其余内容)
+        """
+        if not isinstance(text, str):
+            return None, ""
+        match = READ_DIRECTIVE_RE.search(text)
+        if not match:
+            return None, text
+        target = match.group("target").strip().strip("`\"'<>")
+        remainder = (text[: match.start()] + text[match.end():]).strip()
+        return (target or None), remainder
+
+    @staticmethod
+    def resolve_skill_read(target):
+        """将 READ 指令目标解析为 (skills id, 相对路径)。
+
+        - "skills名称" → (id, "SKILL.md")
+        - "skills名称/相对路径" → (id, 相对路径)
+        """
+        raw = str(target or "").strip().strip("/")
+        if not raw:
+            raise ValueError("自定义LLM：READ 指令未指定目标")
+
+        names = list(skill_names() or []) if skill_names is not None else []
+        by_lower = {name.casefold(): name for name in names}
+
+        # 优先整体匹配 skills id（支持 id 内含点/下划线/连字符）
+        if raw.casefold() in by_lower:
+            return by_lower[raw.casefold()], "SKILL.md"
+
+        # 其次按 "/" 拆分：取最长能匹配到 skills id 的前缀
+        parts = [part for part in raw.split("/") if part]
+        for split in range(len(parts) - 1, 0, -1):
+            prefix = "/".join(parts[:split])
+            if prefix.casefold() in by_lower:
+                return by_lower[prefix.casefold()], "/".join(parts[split:])
+
+        raise ValueError(
+            f"自定义LLM：未找到 skills「{raw}」，可用 skills：{', '.join(names) or '（无）'}"
+        )
+
+    def _chat_with_skills_disclosure(
+        self,
+        url,
+        headers,
+        messages,
+        model,
+        temperature,
+        max_tokens,
+        top_p,
+        seed,
+        images,
+        max_rounds,
+        read_max_chars,
+        total_max_chars,
+    ) -> tuple:
+        """多轮按需读取 skills，直到模型给出最终答案或达到轮数上限。
+
+        文本协议：模型单独输出一行 `READ: <skills名称>[/相对路径]` 即请求读取，
+        节点读取文件后以 user 消息回注，继续下一轮。
+        """
+        if read_skill_file is None or skill_names is None:
+            raise RuntimeError(
+                "自定义LLM：skills 按需读取不可用（skills管理器模块未加载）"
+            )
+
+        max_rounds = max(1, int(max_rounds))
+        read_max_chars = max(1, int(read_max_chars))
+        total_max_chars = max(1, int(total_max_chars))
+        # 多轮对话内部使用副本，避免影响调用方传入的 messages
+        convo = list(messages)
+        injected = 0
+        read_log = []
+
+        for round_index in range(max_rounds):
+            reply = self._post_chat(
+                url=url,
+                headers=headers,
+                messages=convo,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                seed=seed,
+                images=images,
+            )
+            target, remainder = self.parse_read_directive(reply)
+
+            # 无读取指令 → 本轮即最终答案
+            if not target:
+                return (reply,)
+
+            # 解析目标并读取文件
+            try:
+                skill_id, relative_path = self.resolve_skill_read(target)
+                file_text = read_skill_file(
+                    skill_id, relative_path, max_chars=read_max_chars
+                )
+            except Exception as exc:
+                # 读取失败：把错误回注给模型，让它改用正确的名称重试
+                convo.append({"role": "assistant", "content": reply})
+                convo.append(
+                    {
+                        "role": "user",
+                        "content": f"READ 指令执行失败：{exc}\n请改用正确的 skills 名称或路径重试。",
+                    }
+                )
+                continue
+
+            # 累计上限保护：超出后不再注入，直接要求模型基于已有内容作答
+            if injected + len(file_text) > total_max_chars:
+                convo.append({"role": "assistant", "content": reply})
+                convo.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "已达到 skills 内容累计上限，请基于已获得的内容直接给出最终答案，"
+                            "不要再请求读取。"
+                        ),
+                    }
+                )
+                continue
+
+            injected += len(file_text)
+            read_log.append(f"{skill_id}/{relative_path}")
+
+            convo.append({"role": "assistant", "content": reply})
+            convo.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"# skills 内容：{skill_id}/{relative_path}\n\n{file_text}\n\n"
+                        "如需继续读取其它文件，请单独输出一行 READ: 指令；"
+                        "否则请直接给出最终答案。"
+                    ),
+                }
+            )
+
+        # 达到轮数上限仍未给出最终答案：再请求一次并要求直接作答
+        convo.append(
+            {
+                "role": "user",
+                "content": (
+                    f"已达到最大读取轮数（{max_rounds}）。"
+                    "请立即基于已获得的内容直接给出最终答案，不要再请求读取。"
+                ),
+            }
+        )
+        return (
+            self._post_chat(
+                url=url,
+                headers=headers,
+                messages=convo,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                seed=seed,
+                images=images,
+            ),
+        )
 
     @staticmethod
     def _merge_system_text(skills, system_prompt) -> str:
