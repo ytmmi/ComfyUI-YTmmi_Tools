@@ -51,12 +51,19 @@ REFERENCE_SUFFIXES = {".md", ".txt"}
 # 优先选用的默认 skills（与上游默认一致）
 DEFAULT_SKILL_ID = "h3-prompt-writing"
 
-# 模式选项：auto 时同时提供基础模式与全参考模式两份指南。
-# 具体的 H3 生成模式统一加 H3- 前缀（H3-t2va / H3-i2va / H3-fl2va / H3-l2va /
-# H3-ref2va），与「模式」控件名保持一致；auto 为节点自身的「两份都要」语义，
-# 不加前缀。解析时同时兼容带前缀与不带前缀的写法（旧工作流仍可加载）。
+# 模式选项：既用于选择 h3-prompt-writing 的参考资料，也用于按「任务家族」筛选
+# 「自动」清单中列出的 skills（见 mode_skill_filter）。
+#
+# - auto：不筛选，列出全部 skills；h3-prompt-writing 同时提供两份指南；
+# - H3-*：H3 视频任务家族（h3-prompt-writing + 8 个风格类 skills），
+#   且按具体生成模式只提供对应的一份指南（ref2va 用全参考，其余用基础）；
+# - qwen-image-*：Qwen-Image 2.1 图像提示词改写家族（文生图 / 图像编辑）。
+#
+# 解析时同时兼容带前缀与不带前缀的旧写法（旧工作流仍可加载）。
 MODE_PREFIX = "H3-"
 MODE_AUTO = "auto"
+MODE_QWEN_T2I = "qwen-image-t2i"
+MODE_QWEN_EDIT = "qwen-image-edit"
 MODE_OPTIONS = (
     MODE_AUTO,
     "H3-t2va",
@@ -64,7 +71,19 @@ MODE_OPTIONS = (
     "H3-fl2va",
     "H3-l2va",
     "H3-ref2va",
+    MODE_QWEN_T2I,
+    MODE_QWEN_EDIT,
 )
+
+# Qwen-Image 提示词改写类 skills 的 id 标记（用于区分任务家族）
+QWEN_IMAGE_MARKERS = ("qwen-image",)
+
+# 各「任务家族」模式允许出现在「自动」清单中的 skills。
+# 未在此表且非 H3-* 的模式（即 auto）不做筛选。
+MODE_SKILL_ALLOWLIST = {
+    MODE_QWEN_T2I: ("qwen-image-t2i-prompt",),
+    MODE_QWEN_EDIT: ("qwen-image-edit-prompt",),
+}
 
 # 「选择skills」中的自动选项：选择后不预先加载任何 skills 正文，
 # 改由下游节点（自定义LLM）与模型多轮按需读取（渐进式披露）
@@ -480,14 +499,54 @@ def _read(path: Path) -> str:
 
 
 def normalize_mode(mode: str) -> str:
-    """规范化模式取值：去掉 H3- 前缀并转小写，返回 t2va/i2va/fl2va/l2va/ref2va/auto。
+    """规范化模式取值：转小写并去掉 H3- 前缀，返回规范化的模式名。
+
+    - `H3-t2va` → `t2va`（H3 生成模式：t2va/i2va/fl2va/l2va/ref2va）
+    - `qwen-image-t2i` / `qwen-image-edit` → 原样保留
+    - 空 → `auto`
 
     兼容带前缀（H3-t2va）与不带前缀（t2va）两种写法，旧工作流保存的值仍可用。
     """
     value = str(mode or "").strip().casefold()
+    if value in (MODE_QWEN_T2I, MODE_QWEN_EDIT):
+        return value
     if value.startswith(MODE_PREFIX.casefold()):
         value = value[len(MODE_PREFIX):]
     return value or MODE_AUTO
+
+
+def is_qwen_image_mode(mode: str) -> bool:
+    """判断模式是否属于 Qwen-Image 提示词改写任务家族。"""
+    return normalize_mode(mode) in (MODE_QWEN_T2I, MODE_QWEN_EDIT)
+
+
+def is_h3_mode(mode: str) -> bool:
+    """判断模式是否属于 H3 视频任务家族（含 auto 之外的 H3-* 生成模式）。"""
+    return normalize_mode(mode) in {"t2va", "i2va", "fl2va", "l2va", "ref2va"}
+
+
+def filter_registry_for_mode(registry, mode: str):
+    """按模式的任务家族筛选 skills 列表（auto 返回原列表）。
+
+    任务家族筛选的意义：模式已表明任务类型时，清单里不应再出现无关家族的
+    skills，避免模型路由到错误家族（如选 qwen-image-t2i 却读到 H3 视频 skills）。
+
+    - qwen-image-t2i / qwen-image-edit：仅该家族对应 skills；
+    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image）；
+    - auto：不筛选，返回全部。
+    """
+    normalized = normalize_mode(mode)
+    allow = MODE_SKILL_ALLOWLIST.get(normalized)
+    if allow is not None:
+        return tuple(spec for spec in registry if spec.id in allow)
+    if is_h3_mode(normalized):
+        # H3 家族：排除 Qwen-Image 提示词改写类
+        return tuple(
+            spec
+            for spec in registry
+            if not any(m in spec.id.casefold() for m in QWEN_IMAGE_MARKERS)
+        )
+    return tuple(registry)
 
 
 def _h3_guides(mode: str) -> tuple:
@@ -609,14 +668,22 @@ def read_skill_file(
 
 
 def build_skills_manifest(
-    builtin_root=None, custom_root=None, max_chars: int = MAX_CHARS_DEFAULT
+    builtin_root=None,
+    custom_root=None,
+    max_chars: int = MAX_CHARS_DEFAULT,
+    mode: str = MODE_AUTO,
 ) -> str:
     """构建「自动」模式下发给模型的 skills 清单与读取协议说明。
 
     只包含 skills 的 id 与描述（不含正文），由模型按需请求读取正文，
     实现渐进式披露（progressive disclosure）。
+
+    模式为非 auto 时按「任务家族」筛选清单（见 filter_registry_for_mode），
+    避免模型路由到无关家族的 skills。
     """
-    registry = discover_skill_registry(builtin_root, custom_root)
+    registry = filter_registry_for_mode(
+        discover_skill_registry(builtin_root, custom_root), mode
+    )
     if not registry:
         return (
             f"{AUTO_MARKER}\n\n# skills\n\n"
@@ -706,7 +773,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit（非 auto 时按任务家族筛选自动清单）'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -729,8 +796,12 @@ class SkillsManagerNode:
                     list(MODE_OPTIONS),
                     {
                         "default": MODE_AUTO,
-                        "tooltip": "h3-prompt-writing 的参考资料选择：auto 同时提供基础模式与全参考模式两份指南；"
-                        "H3-ref2va 只用全参考指南；H3-t2va / H3-i2va / H3-fl2va / H3-l2va 只用基础指南",
+                        "tooltip": "任务模式。auto：不筛选，列出全部 skills，"
+                        "h3-prompt-writing 同时提供基础与全参考两份指南；"
+                        "H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va：H3 视频家族"
+                        "（H3-ref2va 只用全参考指南，其余只用基础指南）；"
+                        "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族"
+                        "（选「自动」时清单只列该家族的 skills）",
                     },
                 ),
                 "包含参考文件": (
@@ -758,7 +829,7 @@ class SkillsManagerNode:
                         "multiline": True,
                         "placeholder": "追加到 skills 文本末尾的补充说明（可清空）",
                         "tooltip": "默认已按所选 skills 填充对应的输出强调说明"
-                        "（如仅输出提示词正文、或仅输出严格 JSON）；切换 skills 时前端自动替换，"
+                        "（只输出最终内容、不要开头说明与结尾建议）；切换 skills 时前端自动替换，"
                         "也可手动删除或改写",
                     },
                 ),
@@ -770,7 +841,15 @@ class SkillsManagerNode:
     FUNCTION = "load_skills"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False, False, False)
-    SEARCH_ALIASES = ["skills", "skills管理器", "技能", "skill manager", "h3 prompt"]
+    SEARCH_ALIASES = [
+        "skills",
+        "skills管理器",
+        "技能",
+        "skill manager",
+        "h3 prompt",
+        "qwen image prompt",
+        "图像提示词",
+    ]
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -788,9 +867,10 @@ class SkillsManagerNode:
         max_chars = int(kwargs.get("最大字符数", MAX_CHARS_DEFAULT))
         extra = str(kwargs.get("附加说明", "") or "").strip()
 
-        # 「自动」：只输出 skills 清单与读取协议，不加载任何正文（渐进式披露）
+        # 「自动」：只输出 skills 清单与读取协议，不加载任何正文（渐进式披露）。
+        # 模式为非 auto 时按任务家族筛选清单。
         if skill_id == AUTO_SELECTION:
-            text = build_skills_manifest(max_chars=max_chars)
+            text = build_skills_manifest(max_chars=max_chars, mode=mode)
             if extra:
                 text = f"{text}\n\n# 附加说明\n\n{extra}"
             return (text, AUTO_SELECTION, skill_catalog())
@@ -835,7 +915,14 @@ __all__ = [
     "MODE_OPTIONS",
     "MODE_PREFIX",
     "MODE_AUTO",
+    "MODE_QWEN_T2I",
+    "MODE_QWEN_EDIT",
+    "QWEN_IMAGE_MARKERS",
+    "MODE_SKILL_ALLOWLIST",
     "normalize_mode",
+    "is_qwen_image_mode",
+    "is_h3_mode",
+    "filter_registry_for_mode",
     "OUTPUT_ONLY_NOTE",
     "PROMPT_SKILL_MARKERS",
     "is_prompt_skill",
