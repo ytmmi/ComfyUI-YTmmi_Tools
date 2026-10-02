@@ -549,6 +549,21 @@ def filter_registry_for_mode(registry, mode: str):
     return tuple(registry)
 
 
+def resolve_effective_mode(skill_id, mode) -> str:
+    """联动规则：**只有「选择skills」为「自动」时，「模式」才生效**。
+
+    - `选择skills` = 自动 → 返回规范化后的模式（用于按任务家族筛选清单）；
+    - `选择skills` = 具体 skills（或为空，将回退到默认 skills）→ 返回 `auto`，
+      即模式被中和：不筛选，且加载该 skills 的全部参考资料。
+
+    这样「模式」在语义上始终只描述「自动」模式下的任务家族；手动指定 skills 时
+    由该 skills 自身决定输出，不受模式干扰。
+    """
+    if str(skill_id or "").strip() == AUTO_SELECTION:
+        return normalize_mode(mode)
+    return MODE_AUTO
+
+
 def _h3_guides(mode: str) -> tuple:
     """h3-prompt-writing 的参考资料选择：全参考模式用 ref-en，其余用 base-en。"""
     normalized = normalize_mode(mode)
@@ -787,8 +802,10 @@ class SkillsManagerNode:
                     {
                         "default": AUTO_SELECTION,
                         "tooltip": "选择「自动」时不预先加载任何 skills 正文，"
-                        "由自定义LLM与模型多轮按需读取（渐进式披露，最省上下文）；"
-                        "选择具体 skills 则直接输出该 skills 的完整指导文本；"
+                        "由自定义LLM与模型多轮按需读取（渐进式披露，最省上下文），"
+                        "此时「模式」生效（按任务家族筛选清单）；"
+                        "选择具体 skills 则直接输出该 skills 的完整指导文本，"
+                        "此时「模式」自动失效（不筛选、加载全部参考资料）；"
                         "点击节点上的「刷新skills」按钮可重新扫描",
                     },
                 ),
@@ -796,12 +813,12 @@ class SkillsManagerNode:
                     list(MODE_OPTIONS),
                     {
                         "default": MODE_AUTO,
-                        "tooltip": "任务模式。auto：不筛选，列出全部 skills，"
-                        "h3-prompt-writing 同时提供基础与全参考两份指南；"
+                        "tooltip": "任务模式，仅在「选择skills」为「自动」时生效"
+                        "（选具体 skills 时自动失效）。"
+                        "auto：不筛选，列出全部 skills，h3-prompt-writing 同时提供基础与全参考两份指南；"
                         "H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va：H3 视频家族"
                         "（H3-ref2va 只用全参考指南，其余只用基础指南）；"
-                        "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族"
-                        "（选「自动」时清单只列该家族的 skills）",
+                        "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族",
                     },
                 ),
                 "包含参考文件": (
@@ -867,10 +884,14 @@ class SkillsManagerNode:
         max_chars = int(kwargs.get("最大字符数", MAX_CHARS_DEFAULT))
         extra = str(kwargs.get("附加说明", "") or "").strip()
 
+        # 联动：只有「选择skills」为「自动」时「模式」才生效；
+        # 手动选具体 skills 时模式被中和（不筛选、加载该 skills 全部参考资料）。
+        effective_mode = resolve_effective_mode(skill_id, mode)
+
         # 「自动」：只输出 skills 清单与读取协议，不加载任何正文（渐进式披露）。
         # 模式为非 auto 时按任务家族筛选清单。
         if skill_id == AUTO_SELECTION:
-            text = build_skills_manifest(max_chars=max_chars, mode=mode)
+            text = build_skills_manifest(max_chars=max_chars, mode=effective_mode)
             if extra:
                 text = f"{text}\n\n# 附加说明\n\n{extra}"
             return (text, AUTO_SELECTION, skill_catalog())
@@ -886,7 +907,7 @@ class SkillsManagerNode:
 
         text = skill_instructions(
             skill_id,
-            mode=mode,
+            mode=effective_mode,
             max_chars=max_chars,
             include_references=include_references,
         )
@@ -923,6 +944,7 @@ __all__ = [
     "is_qwen_image_mode",
     "is_h3_mode",
     "filter_registry_for_mode",
+    "resolve_effective_mode",
     "OUTPUT_ONLY_NOTE",
     "PROMPT_SKILL_MARKERS",
     "is_prompt_skill",

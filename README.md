@@ -93,20 +93,35 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `选择skills` | COMBO | 自动 | `自动` = 只输出清单与读取协议，由模型多轮按需读取（渐进式披露）；也可选具体 skills 直接输出其完整指导文本。点击「刷新skills」按钮可重新扫描 |
-| `模式` | COMBO | auto | **任务模式**：既决定 `h3-prompt-writing` 加载哪份指南，也按**任务家族**筛选「自动」清单（见下） |
+| `模式` | COMBO | auto | **任务模式，仅在「选择skills」= `自动` 时生效**（见下） |
 | `包含参考文件` | BOOLEAN | True | 是否一并读取 skills 的 `references/` 参考资料（仅「具体 skills」模式生效） |
 | `最大字符数` | INT | 72000 | 指导文本字符上限，超出后不再追加参考资料 |
 | `附加说明` | STRING | 按 skills | 追加到 skills 文本末尾的补充说明；**按所选 skills 自动填充输出强调**（抑制开头说明/结尾建议等无关元素），可自行删除或改写 |
 
+#### 选择skills 与 模式 的联动
+
+**「模式」只在「选择skills」为 `自动` 时生效**——因为模式描述的是"自动挑选 skills 时限定哪个任务家族"，一旦手动指定了 skills，就由该 skills 自身决定输出，模式不再参与。
+
+| 「选择skills」 | 「模式」 | 实际效果 |
+|---|---|---|
+| `自动` | `auto` | 列出全部 skills，不筛选 |
+| `自动` | `H3-*` / `qwen-image-*` | 按任务家族筛选清单 |
+| 具体 skills | 任意值 | **模式失效**：不筛选，且加载该 skills 的**全部**参考资料 |
+
+前端会在切换到具体 skills 时**自动把「模式」切回 `auto`**，切回 `自动` 时再恢复你此前选的模式（不会被清掉）。这样界面上始终不会出现"模式看起来选了但实际没生效"的困惑状态。
+
+> 例：手动选 `h3-prompt-writing` 时，无论模式是 `auto` 还是 `H3-ref2va`，都会加载 base-en + ref-en 两份指南（42,017 字符）。若想让模式真正筛选，请把「选择skills」设为 `自动`。
+
 #### 模式与任务家族
 
-| `模式` | 任务家族 | 「自动」清单包含 | `h3-prompt-writing` 的指南 |
-|---|---|---|---|
-| `auto` | 全部 | 11 个（不筛选） | base-en + ref-en 两份 |
-| `H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` | H3 视频 | 9 个（排除 2 个 Qwen-Image） | 仅 base-en |
-| `H3-ref2va` | H3 视频 | 9 个（排除 2 个 Qwen-Image） | 仅 ref-en |
-| `qwen-image-t2i` | Qwen-Image 文生图 | **仅 `qwen-image-t2i-prompt`** | — |
-| `qwen-image-edit` | Qwen-Image 图像编辑 | **仅 `qwen-image-edit-prompt`** | — |
+下表均为「选择skills」= `自动` 时的行为：
+
+| `模式` | 任务家族 | 「自动」清单包含 |
+|---|---|---|
+| `auto` | 全部 | 11 个（不筛选） |
+| `H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` / `H3-ref2va` | H3 视频 | 9 个（排除 2 个 Qwen-Image） |
+| `qwen-image-t2i` | Qwen-Image 文生图 | **仅 `qwen-image-t2i-prompt`** |
+| `qwen-image-edit` | Qwen-Image 图像编辑 | **仅 `qwen-image-edit-prompt`** |
 
 **筛选的意义**：模式已表明任务类型时，清单里不应再出现无关家族的 skills，否则模型可能路由到错误家族（例如选了 `qwen-image-t2i` 却读到 H3 视频 skills）。实测清单体积：
 
@@ -117,7 +132,9 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | `qwen-image-t2i` | 735 | — | ✓ | — | — |
 | `qwen-image-edit` | 785 | — | — | ✓ | — |
 
-> 模式筛选**只影响「自动」清单**；手动选具体 skills 时不受影响，仍输出该 skills 全文。
+> **模式在节点内的唯一实际作用就是「任务家族筛选」。** 自动清单只列 skills 的 id 与描述（不含正文），模型 `READ:` 某个 skills 时读到的也只是它的 `SKILL.md`，参考资料需另行 `READ: <skills>/references/xxx`——因此模式无法、也不会去挑参考资料。手动分支下模式已被中和，两份指南一律加载。
+>
+> `skill_instructions(skill_id, mode=...)` 作为公开 API 仍支持按模式挑指南（`H3-ref2va` → 仅 ref-en；其余 H3 模式 → 仅 base-en），供外部调用与测试使用；节点自身不再走该分支。
 
 输出：`skills`（完整指导文本或自动清单）、`skills名称`（所选 skills 的 id，自动模式为 `自动`）、`skills目录`（全部已发现 skills 的清单）。
 
