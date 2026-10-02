@@ -83,7 +83,7 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 - 读取失败（名称错误等）会把错误回注给模型，让它改名重试，而不是直接中断；
 - 图片输入挂在最初那条 user 消息上，后续每一轮都仍然可见。
 
-> **关于 `h3-prompt-writing` 的两份指南：** `references/base-en.txt`（T2VA/I2VA/FL2VA/L2VA）与 `references/ref-en.txt`（Ref2VA）**并非重复内容**——实测两者非空行交集仅 2 行（均为代码围栏），且 `ref-en.txt` 有 4 处明确声明其镜头/运镜/对白规则"shared with / follows the Video Prompt Writing Guide"，即**依赖 base-en**。因此 `H3模式` 为 `auto` 时同时提供两份，避免因小失大。
+> **关于 `h3-prompt-writing` 的两份指南：** `references/base-en.txt`（T2VA/I2VA/FL2VA/L2VA）与 `references/ref-en.txt`（Ref2VA）**并非重复内容**——实测两者非空行交集仅 2 行（均为代码围栏），且 `ref-en.txt` 有 4 处明确声明其镜头/运镜/对白规则"shared with / follows the Video Prompt Writing Guide"，即**依赖 base-en**。因此 `模式` 为 `auto` 时同时提供两份，避免因小失大。
 
 ### skills管理器
 
@@ -92,7 +92,7 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
 | `选择skills` | COMBO | 自动 | `自动` = 只输出清单与读取协议，由模型多轮按需读取（渐进式披露）；也可选具体 skills 直接输出其完整指导文本。点击「刷新skills」按钮可重新扫描 |
-| `H3模式` | COMBO | auto | `h3-prompt-writing` 的参考资料选择：`auto` 同时提供基础与全参考指南，`ref2va` 只用全参考指南，其余只用基础指南 |
+| `模式` | COMBO | auto | `h3-prompt-writing` 的参考资料选择：`auto` 同时提供基础与全参考两份指南；`H3-ref2va` 只用全参考指南；`H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` 只用基础指南 |
 | `包含参考文件` | BOOLEAN | True | 是否一并读取 skills 的 `references/` 参考资料（仅「具体 skills」模式生效） |
 | `最大字符数` | INT | 72000 | 指导文本字符上限，超出后不再追加参考资料 |
 | `附加说明` | STRING | 空 | 追加到 skills 文本末尾的补充说明（可选） |

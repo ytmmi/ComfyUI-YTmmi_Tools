@@ -51,8 +51,20 @@ REFERENCE_SUFFIXES = {".md", ".txt"}
 # 优先选用的默认 skills（与上游默认一致）
 DEFAULT_SKILL_ID = "h3-prompt-writing"
 
-# H3 模式选项：auto 时同时提供基础模式与全参考模式两份指南
-MODE_OPTIONS = ("auto", "t2va", "i2va", "fl2va", "l2va", "ref2va")
+# 模式选项：auto 时同时提供基础模式与全参考模式两份指南。
+# 具体的 H3 生成模式统一加 H3- 前缀（H3-t2va / H3-i2va / H3-fl2va / H3-l2va /
+# H3-ref2va），与「模式」控件名保持一致；auto 为节点自身的「两份都要」语义，
+# 不加前缀。解析时同时兼容带前缀与不带前缀的写法（旧工作流仍可加载）。
+MODE_PREFIX = "H3-"
+MODE_AUTO = "auto"
+MODE_OPTIONS = (
+    MODE_AUTO,
+    "H3-t2va",
+    "H3-i2va",
+    "H3-fl2va",
+    "H3-l2va",
+    "H3-ref2va",
+)
 
 # 「选择skills」中的自动选项：选择后不预先加载任何 skills 正文，
 # 改由下游节点（自定义LLM）与模型多轮按需读取（渐进式披露）
@@ -386,11 +398,23 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def normalize_mode(mode: str) -> str:
+    """规范化模式取值：去掉 H3- 前缀并转小写，返回 t2va/i2va/fl2va/l2va/ref2va/auto。
+
+    兼容带前缀（H3-t2va）与不带前缀（t2va）两种写法，旧工作流保存的值仍可用。
+    """
+    value = str(mode or "").strip().casefold()
+    if value.startswith(MODE_PREFIX.casefold()):
+        value = value[len(MODE_PREFIX):]
+    return value or MODE_AUTO
+
+
 def _h3_guides(mode: str) -> tuple:
     """h3-prompt-writing 的参考资料选择：全参考模式用 ref-en，其余用 base-en。"""
-    if mode == "ref2va":
+    normalized = normalize_mode(mode)
+    if normalized == "ref2va":
         return ("ref-en.txt",)
-    if mode in {"t2va", "i2va", "fl2va", "l2va"}:
+    if normalized in {"t2va", "i2va", "fl2va", "l2va"}:
         return ("base-en.txt",)
     return ("base-en.txt", "ref-en.txt")
 
@@ -594,7 +618,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -613,12 +637,12 @@ class SkillsManagerNode:
                         "点击节点上的「刷新skills」按钮可重新扫描",
                     },
                 ),
-                "H3模式": (
+                "模式": (
                     list(MODE_OPTIONS),
                     {
-                        "default": "auto",
-                        "tooltip": "h3-prompt-writing 的参考资料选择：auto 同时提供基础模式与全参考模式指南；"
-                        "ref2va 只用全参考指南；其余模式只用基础指南",
+                        "default": MODE_AUTO,
+                        "tooltip": "h3-prompt-writing 的参考资料选择：auto 同时提供基础模式与全参考模式两份指南；"
+                        "H3-ref2va 只用全参考指南；H3-t2va / H3-i2va / H3-fl2va / H3-l2va 只用基础指南",
                     },
                 ),
                 "包含参考文件": (
@@ -663,7 +687,10 @@ class SkillsManagerNode:
     def load_skills(self, **kwargs):
         # 中文控件名在 kwargs 中接收，内部变量保持英文
         skill_id = str(kwargs.get("选择skills", "") or "").strip()
-        mode = str(kwargs.get("H3模式", "auto") or "auto").strip()
+        # 「模式」兼容旧键名「H3模式」（旧工作流保存的控件名）
+        mode = str(
+            kwargs.get("模式", kwargs.get("H3模式", MODE_AUTO)) or MODE_AUTO
+        ).strip()
         include_references = bool(kwargs.get("包含参考文件", True))
         max_chars = int(kwargs.get("最大字符数", MAX_CHARS_DEFAULT))
         extra = str(kwargs.get("附加说明", "") or "").strip()
@@ -713,6 +740,9 @@ __all__ = [
     "BUILTIN_SKILLS_DIR",
     "CUSTOM_SKILLS_DIR",
     "MODE_OPTIONS",
+    "MODE_PREFIX",
+    "MODE_AUTO",
+    "normalize_mode",
     "MAX_CHARS_DEFAULT",
     "DEFAULT_SKILL_ID",
     "discover_skill_registry",
