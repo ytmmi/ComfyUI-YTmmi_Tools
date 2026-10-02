@@ -2,7 +2,6 @@
 name: qwen-image-edit-prompt
 description: Rewrite a vague image-editing instruction into a precise, actionable editing directive for Qwen-Image 2.1. Use when clarifying edits such as object or attribute changes, text/UI edits, style or quality changes, viewpoint and canvas transforms, compositing, face or clothing swaps, background replacement, outpainting, or multi-image reference work. Decides wh_ratio and ratio_follow and returns strict JSON.
 version: 1.0.0
-extra-note: 【输出要求】只输出一个严格合法的 JSON 对象（单行，不要用 Markdown 代码块围栏包裹），不要输出任何说明、解释、前言、后记、示例或多余字段，也不要复述本条要求。
 ---
 
 # Qwen-Image 2.1 Edit Prompt Rewriting

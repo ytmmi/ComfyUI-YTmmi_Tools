@@ -7,9 +7,9 @@ import { app } from "../../scripts/app.js";
  *   skills/（内置）与 custom_skills/（自定义）目录，并更新「选择skills」下拉选项；
  * - 下拉选项更新使用「原地修改 values 数组」（splice），兼容新前端
  *   Vue 响应式渲染（整体替换 options 对象会断开响应式引用导致不刷新）；
- * - 「附加说明」按所选 skills 套用对应默认强调说明（后端按 skills 返回 extra_note：
- *   Qwen-Image 类为「只输出 JSON」、h3-prompt-writing 为「只输出提示词正文」、
- *   自动为通用强调、风格类为空）；切换 skills 时自动替换；
+ * - 「附加说明」按所选 skills 套用对应的默认强调说明（后端按 skills 返回 extra_note）：
+ *   产出单一交付物的提示词类 skills（含散文与 JSON）用「只输出最终内容、不要开头说明
+ *   与结尾建议」的强调，风格类 skills 留空；切换 skills 时自动替换；
  *   若用户已改成自定义内容则一律不动，避免覆盖用户输入。
  */
 app.registerExtension({

@@ -51,9 +51,6 @@ REFERENCE_SUFFIXES = {".md", ".txt"}
 # 优先选用的默认 skills（与上游默认一致）
 DEFAULT_SKILL_ID = "h3-prompt-writing"
 
-# 「提示词书写」类 skills 的 id 识别标记（用于默认填充「仅输出提示词」强调说明）
-PROMPT_WRITING_SKILL_MARKERS = ("prompt-writing", "prompt_writing")
-
 # 模式选项：auto 时同时提供基础模式与全参考模式两份指南。
 # 具体的 H3 生成模式统一加 H3- 前缀（H3-t2va / H3-i2va / H3-fl2va / H3-l2va /
 # H3-ref2va），与「模式」控件名保持一致；auto 为节点自身的「两份都要」语义，
@@ -82,37 +79,25 @@ READABLE_SUFFIXES = {".md", ".txt", ".yaml", ".yml", ".json"}
 
 # 「附加说明」的默认强调提示词。
 #
-# 不同 skills 的输出格式不同，因此强调说明按 skills 区分（见 SKILL_EXTRA_NOTES 与
-# default_extra_note）；skills 也可在 SKILL.md front matter / meta.yaml 中用
-# `extra-note` 自行声明。默认值填充在「附加说明」文本框中，用户可自行删除或改写，
-# 前端 JS 在切换到其它 skills 时会按新 skills 的默认值替换（用户自定义内容不动）。
-PROMPT_ONLY_NOTE = (
-    "【输出要求】只输出最终的提示词正文本身，不要输出任何说明、解释、前言、后记、"
-    "标题、Markdown 代码块围栏或分隔线，也不要复述本条要求。"
+# 设计要点：**提示词正文不只指散文，JSON 等结构化结果同样是「正文」的一种形态**，
+# 因此这里不重复规定输出格式（格式归所选 skills 的输出契约管），只做一件事——
+# 抑制无关元素：开头的说明、结尾的建议、解释、总结、代码块围栏等。
+# 这样一条强调即可通用于散文类与 JSON 类 skills，不必按格式分叉。
+#
+# 该默认值填充在「附加说明」文本框中，用户可自行删除或改写；前端 JS 在切换 skills
+# 时会按新 skills 的默认值替换（用户自定义内容不动）。skills 也可在 SKILL.md
+# front matter / meta.yaml 中用 `extra-note` 自行声明，优先级高于此默认值。
+OUTPUT_ONLY_NOTE = (
+    "【输出要求】只输出所选 skills 规定格式的最终内容本身（提示词正文、JSON 等，"
+    "以 skills 的格式契约为准）；不要输出任何开头说明、结尾建议、解释、总结、前言、"
+    "后记或 Markdown 代码块围栏，也不要复述本条要求。"
 )
 
-# 输出严格 JSON 的 skills（如 Qwen-Image 的提示词改写）不能用「只输出提示词正文」，
-# 否则会与 skills 自身的 JSON 输出契约冲突。
-JSON_ONLY_NOTE = (
-    "【输出要求】只输出一个严格合法的 JSON 对象（单行，不要用 Markdown 代码块围栏"
-    "包裹），不要输出任何说明、解释、前言、后记、示例或多余字段，也不要复述本条要求。"
-)
-
-# 「自动」模式下模型可能选中任意 skills（含 JSON 输出类），因此使用与具体格式无关的
-# 通用强调，只约束「不要输出说明性文字」。
-GENERIC_ONLY_NOTE = (
-    "【输出要求】只输出最终结果本身，并严格遵循所选 skills 规定的输出格式；"
-    "不要输出任何说明、解释、前言、后记、开场白或 Markdown 代码块围栏，"
-    "也不要复述本条要求。"
-)
-
-# 按 skills id 指定默认强调说明（未列出的提示词书写类 skills 用 PROMPT_ONLY_NOTE，
-# 其余风格类 skills 留空）
-SKILL_EXTRA_NOTES = {
-    "h3-prompt-writing": PROMPT_ONLY_NOTE,
-    "qwen-image-t2i-prompt": JSON_ONLY_NOTE,
-    "qwen-image-edit-prompt": JSON_ONLY_NOTE,
-}
+# 「提示词类」skills 的 id 识别标记：这类 skills 的产出是单一交付物（提示词正文或
+# JSON），适合套用「只输出最终内容」的强调。
+# 注意：风格类 skills（3d-animation-*、brand-promo-* 等）不在此列——它们会输出分镜、
+# 制作方案，且可能包含澄清提问与方案选项，强加「只输出最终内容」会破坏其交互设计。
+PROMPT_SKILL_MARKERS = ("prompt",)
 
 # 读取参考资料时的默认字符上限
 MAX_CHARS_DEFAULT = 72000
@@ -449,16 +434,17 @@ def _skill_path(skill_id: str, builtin_root=None, custom_root=None) -> Path:
     return root
 
 
-def is_prompt_writing_skill(skill_id) -> bool:
-    """判断某个 skills 是否属于「提示词书写」类。
+def is_prompt_skill(skill_id) -> bool:
+    """判断某个 skills 是否产出单一交付物（提示词正文 / JSON 等）。
 
-    按 id 中的 prompt-writing / prompt_writing 标记识别（如 h3-prompt-writing），
-    以便为其默认填充「仅输出提示词」的强调说明。
+    按 id 中的 `prompt` 标记识别（如 h3-prompt-writing、qwen-image-t2i-prompt），
+    这类 skills 适合套用「只输出最终内容」的强调说明；风格类 skills（会输出分镜、
+    制作方案，甚至含澄清提问）不适用。
     """
     value = str(skill_id or "").strip().casefold()
     if not value:
         return False
-    return any(marker in value for marker in PROMPT_WRITING_SKILL_MARKERS)
+    return any(marker in value for marker in PROMPT_SKILL_MARKERS)
 
 
 def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> str:
@@ -466,15 +452,16 @@ def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> st
 
     取值优先级：
     1. skills 自身在 SKILL.md front matter / meta.yaml 中声明的 `extra-note`；
-    2. 内置映射表 SKILL_EXTRA_NOTES（Qwen-Image 类用 JSON 强调、h3-prompt-writing 用
-       仅提示词强调）；
-    3. 其余「提示词书写」类 skills → PROMPT_ONLY_NOTE；
-    4. 「自动」→ GENERIC_ONLY_NOTE（模型可能选中任意 skills，含 JSON 输出类）；
-    5. 其余风格类 skills → 空（它们会输出分镜/制作方案等多段内容，强加会误导模型）。
+    2. 产出单一交付物的 skills（id 含 `prompt`，含散文与 JSON 两类）→ OUTPUT_ONLY_NOTE；
+    3. 「自动」→ OUTPUT_ONLY_NOTE（不预设具体 skills，用同一套通用强调）；
+    4. 其余风格类 skills → 空（它们会输出分镜/制作方案，强加会误导模型）。
+
+    注意：这里**不按输出格式分叉**——JSON 与散文都只是「正文」的不同形态，
+    格式由所选 skills 的输出契约规定，本强调只负责抑制无关元素。
     """
     value = str(skill_id or "").strip()
     if not value or value == AUTO_SELECTION:
-        return GENERIC_ONLY_NOTE
+        return OUTPUT_ONLY_NOTE
 
     # 1. skills 自带声明优先
     try:
@@ -484,13 +471,8 @@ def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> st
     except Exception:
         pass
 
-    # 2. 内置映射表（按 id 精确匹配，大小写不敏感）
-    for key, note in SKILL_EXTRA_NOTES.items():
-        if key.casefold() == value.casefold():
-            return note
-
-    # 3. 其余提示词书写类 skills
-    return PROMPT_ONLY_NOTE if is_prompt_writing_skill(value) else ""
+    # 2. 产出单一交付物的 skills
+    return OUTPUT_ONLY_NOTE if is_prompt_skill(value) else ""
 
 
 def _read(path: Path) -> str:
@@ -713,7 +695,7 @@ if (
                         for spec in registry
                     ],
                     # 「自动」选项对应的通用强调说明
-                    "auto_extra_note": GENERIC_ONLY_NOTE,
+                    "auto_extra_note": OUTPUT_ONLY_NOTE,
                 }
             )
         except Exception as exc:
@@ -854,12 +836,9 @@ __all__ = [
     "MODE_PREFIX",
     "MODE_AUTO",
     "normalize_mode",
-    "PROMPT_ONLY_NOTE",
-    "JSON_ONLY_NOTE",
-    "GENERIC_ONLY_NOTE",
-    "SKILL_EXTRA_NOTES",
-    "PROMPT_WRITING_SKILL_MARKERS",
-    "is_prompt_writing_skill",
+    "OUTPUT_ONLY_NOTE",
+    "PROMPT_SKILL_MARKERS",
+    "is_prompt_skill",
     "default_extra_note",
     "MAX_CHARS_DEFAULT",
     "DEFAULT_SKILL_ID",

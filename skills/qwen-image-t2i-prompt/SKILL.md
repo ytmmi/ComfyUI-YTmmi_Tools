@@ -2,7 +2,6 @@
 name: qwen-image-t2i-prompt
 description: Rewrite a text-to-image request into one long English observational paragraph plus an aspect ratio. Use when turning a short or vague image idea into a finished-image description for Qwen-Image 2.1, choosing a wh_ratio, placing elements around the frame, setting legible text, lighting, and composition. Returns strict JSON with rewritten_prompt and wh_ratio.
 version: 1.0.0
-extra-note: 【输出要求】只输出一个严格合法的 JSON 对象（单行，不要用 Markdown 代码块围栏包裹），不要输出任何说明、解释、前言、后记、示例或多余字段，也不要复述本条要求。
 ---
 
 # Qwen-Image 2.1 T2I Prompt Rewriting
