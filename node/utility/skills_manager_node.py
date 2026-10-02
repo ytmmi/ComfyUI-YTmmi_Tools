@@ -51,6 +51,9 @@ REFERENCE_SUFFIXES = {".md", ".txt"}
 # 优先选用的默认 skills（与上游默认一致）
 DEFAULT_SKILL_ID = "h3-prompt-writing"
 
+# 「提示词书写」类 skills 的 id 识别标记（用于默认填充「仅输出提示词」强调说明）
+PROMPT_WRITING_SKILL_MARKERS = ("prompt-writing", "prompt_writing")
+
 # 模式选项：auto 时同时提供基础模式与全参考模式两份指南。
 # 具体的 H3 生成模式统一加 H3- 前缀（H3-t2va / H3-i2va / H3-fl2va / H3-l2va /
 # H3-ref2va），与「模式」控件名保持一致；auto 为节点自身的「两份都要」语义，
@@ -76,6 +79,16 @@ AUTO_MARKER = "<<<YTMMI_SKILLS_AUTO>>>"
 
 # 按需读取允许的文件扩展名（仅文本类指导文件，不执行任何内容）
 READABLE_SUFFIXES = {".md", ".txt", ".yaml", ".yml", ".json"}
+
+# 「附加说明」的默认强调提示词。
+# 「提示词书写」类 skills（h3-prompt-writing）容易在提示词前后附带说明、解释、
+# 开场白、代码块围栏等无关文字，因此在「附加说明」文本框中默认填充本条强调，
+# 由用户自行决定保留或删除（前端 JS 在切换到非提示词类 skills 时会自动清空，
+# 以免误伤会输出多段制作方案的风格类 skills）。
+PROMPT_ONLY_NOTE = (
+    "【输出要求】只输出最终的提示词正文本身，不要输出任何说明、解释、前言、后记、"
+    "标题、Markdown 代码块围栏或分隔线，也不要复述本条要求。"
+)
 
 # 读取参考资料时的默认字符上限
 MAX_CHARS_DEFAULT = 72000
@@ -394,6 +407,31 @@ def _skill_path(skill_id: str, builtin_root=None, custom_root=None) -> Path:
     return root
 
 
+def is_prompt_writing_skill(skill_id) -> bool:
+    """判断某个 skills 是否属于「提示词书写」类。
+
+    按 id 中的 prompt-writing / prompt_writing 标记识别（如 h3-prompt-writing），
+    以便为其默认填充「仅输出提示词」的强调说明。
+    """
+    value = str(skill_id or "").strip().casefold()
+    if not value:
+        return False
+    return any(marker in value for marker in PROMPT_WRITING_SKILL_MARKERS)
+
+
+def default_extra_note(skill_id=None) -> str:
+    """「附加说明」的默认值。
+
+    - 「自动」或未指定：默认填充强调说明（H3 场景以产出提示词为主）；
+    - 提示词书写类 skills：默认填充强调说明；
+    - 其余风格类 skills（会输出分镜/制作方案等多段内容）：留空，避免误导模型。
+    """
+    value = str(skill_id or "").strip()
+    if not value or value == AUTO_SELECTION:
+        return PROMPT_ONLY_NOTE
+    return PROMPT_ONLY_NOTE if is_prompt_writing_skill(value) else ""
+
+
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -664,9 +702,12 @@ class SkillsManagerNode:
                 "附加说明": (
                     "STRING",
                     {
-                        "default": "",
+                        # 默认填充「仅输出提示词」强调说明（可自行删除或改写）
+                        "default": default_extra_note(default_skill_id()),
                         "multiline": True,
-                        "placeholder": "追加到 skills 文本末尾的补充说明（可选）",
+                        "placeholder": "追加到 skills 文本末尾的补充说明（可清空）",
+                        "tooltip": "默认已填充「仅输出提示词正文、不要输出说明」的强调说明；"
+                        "切换到非提示词类 skills 时前端会自动清空，也可手动删除或改写",
                     },
                 ),
             },
@@ -743,6 +784,10 @@ __all__ = [
     "MODE_PREFIX",
     "MODE_AUTO",
     "normalize_mode",
+    "PROMPT_ONLY_NOTE",
+    "PROMPT_WRITING_SKILL_MARKERS",
+    "is_prompt_writing_skill",
+    "default_extra_note",
     "MAX_CHARS_DEFAULT",
     "DEFAULT_SKILL_ID",
     "discover_skill_registry",
