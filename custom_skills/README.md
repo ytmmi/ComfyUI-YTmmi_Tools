@@ -50,8 +50,28 @@ summary-cn: 把菜品描述改写为电影感美食短视频提示词。
 summary-en: Rewrite dish descriptions into cinematic food short-video prompts.
 ```
 
+## 默认「附加说明」（extra-note）
+
+「skills管理器」节点会按所选 skills 自动填充一条输出强调（抑制开头说明、结尾建议等
+无关元素）。默认规则按 skills id 判断：
+
+- id 含 `prompt`（如 `my-prompt-skill`）→ 填充该强调；
+- 其余 → 留空（适用于会输出分镜、制作方案、澄清提问的流程类 skills）。
+
+若你的 skills 需要不同的强调，可在 front matter 或 `meta.yaml` 中自行声明，**优先级高于默认规则**：
+
+```yaml
+extra-note: 【输出要求】只输出严格合法的 JSON 对象，不要输出任何说明。
+```
+
+用户在节点上改写「附加说明」后不会被自动覆盖；清空则该说明不追加。
+
 ## 使用方式
 
 1. 在 ComfyUI 中添加「skills管理器」节点（分类 `YTmmi/utility`）；
-2. 在「选择skills」下拉中选择本目录下的 skills；
+2. 在「选择skills」下拉中选择本目录下的 skills（点击「刷新skills」可重新扫描）；
 3. 将输出的 `skills` 接入「自定义LLM」节点的 `skills` 输入接口。
+
+> 若「选择skills」选「自动」，节点只输出 skills 清单与 `READ:` 读取协议，
+> 由「自定义LLM」与模型多轮按需读取正文（渐进式披露，更省上下文）。
+> 此时「模式」还可按任务家族筛选清单（如只列 Qwen-Image 或 H3 家族）。

@@ -50,13 +50,14 @@ ComfyUI 自定义节点工具集，提供图片保存、JSON 文件导出、图�
 | **自动**（默认） | 只把 skills **清单与读取协议**发给模型，模型按需请求读取正文，多轮往返直到给出答案（**渐进式披露**） | 首轮约 6.7k 字符 |
 | 具体 skills | 直接输出该 skills 的完整指导文本（含 `references/`），单轮请求 | 如 h3-prompt-writing 约 42k 字符 |
 
-**实测对比**（9 个内置 skills）：
+**实测对比**（11 个内置 skills，`模式` = `auto`）：
 
 | 方式 | 字符数 |
 |---|---|
-| 自动模式首轮（清单 + 协议） | 6,659 |
+| 自动模式首轮（清单 + 协议，不筛选） | 7,525 |
+| 自动模式首轮（`模式` = `qwen-image-t2i`，按家族筛选） | 735 |
 | 固定发送 h3-prompt-writing 全文 | 42,017 |
-| 固定发送全部 9 个 skills 全文 | 233,787 |
+| 固定发送全部 11 个 skills 全文 | 272,019 |
 
 自动模式首轮比固定发送单个 skills 全文**省约 84% 上下文**，且模型可自行决定是否需要 skills、需要哪个、以及是否需要进一步读取参考文件。
 
@@ -189,8 +190,9 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 
 - 每个 skills 为 `skills/` 或 `custom_skills/` 下的一个子目录，目录名即 skills id；
 - 子目录中必须包含 `SKILL.md`（skills 正文）；
-- `SKILL.md` 顶部可选 YAML front matter：`name` / `description` / `display_name` / `version` / `tags`；
-- 子目录可选 `meta.yaml`，提供 `display-name-zh`、`summary-cn`、`version`、`tag-cn` 等元数据；
+- `SKILL.md` 顶部可选 YAML front matter：`name` / `description` / `display_name` / `version` / `tags` / `extra-note`；
+- 子目录可选 `meta.yaml`，提供 `display-name-zh`、`summary-cn`、`version`、`tag-cn`、`extra-note` 等元数据；
+- `extra-note` 用于为该 skills 指定默认「附加说明」（覆盖内置的通用强调），不写则按 id 规则自动决定；
 - `references/` 下的 `.md` / `.txt` 会作为参考资料一并读取（受「最大字符数」限制）；
 - skills id 只能包含小写字母、数字、点、下划线与连字符，且不能为 `auto`；
 - 内置 `skills/` 优先，`custom_skills/` 中同 id 的 skills 不会覆盖内置。
