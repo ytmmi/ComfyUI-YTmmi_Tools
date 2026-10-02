@@ -1,6 +1,6 @@
 # ComfyUI-YTmmi_Tools
 
-ComfyUI 自定义节点工具集，提供图片保存、JSON 文件导出、图片文字水印及批量图片加载等功能。
+ComfyUI 自定义节点工具集，提供图片保存、JSON 文件导出、图片文字水印、批量图片加载及 MiniMax H3 视频采样调度等功能。
 
 ## 节点说明
 
@@ -29,6 +29,38 @@ ComfyUI 自定义节点工具集，提供图片保存、JSON 文件导出、图�
 
 - **二维码识别** — 识别图片中的二维码，返回解码文本
 - **创建二维码** — 根据文本生成二维码图片，支持错误矫正等级、边长、边距设置
+
+### MiniMax H3
+
+- **H3 低噪细节精修** — 在低噪点区（低 Sigma）局部加密采样步长，消解运动物体的边缘像素颗粒；移植自 [ComfyUI-YCNodes-MiniMax-H3](https://github.com/yichengup/ComfyUI-YCNodes-MiniMax-H3.git)
+
+## 移植节点说明
+
+### H3 低噪细节精修（H3 Sigma Refiner）
+
+移植自 [ComfyUI-YCNodes-MiniMax-H3](https://github.com/yichengup/ComfyUI-YCNodes-MiniMax-H3.git)（作者：亦诚，MIT 许可）的 `H3 Sigma Refiner` 节点，算法逻辑与原实现保持一致，按本项目规范调整了注册键名（`YTmmiH3SigmaRefiner`）、分类（`YTmmi/minimax-h3`）、控件中文名与 `DESCRIPTION`，并补充了输入类型校验。
+
+**原理：** 对低 Sigma 区间进行局部加步——保留原始调度的高噪头部不动，从阈值点起把尾部重采样成更长、更平滑的曲线，让模型在细节收尾阶段多走几步，消除高速运动边缘的马赛克与像素紊乱。
+
+**接线：** 插在调度器和采样器之间。
+
+```
+BasicScheduler -> (sigmas) -> H3 低噪细节精修 -> (sigmas) -> SamplerCustomAdvanced
+```
+
+| 参数 | 类型 | 默认值 | 范围 | 说明 |
+|---|---|---|---|---|
+| `噪声序列` | SIGMAS | - | - | 原始噪声序列 |
+| `额外步数` | INT | 1 | 0 ~ 15 | 低噪区间额外增加的步数，为 0 时原样返回 |
+| `起始Sigma` | FLOAT | 0.7 | 0.0 ~ 20.0 | 启动加步的 Sigma 阈值 |
+| `结束Sigma` | FLOAT | 0.0 | 0.0 ~ 5.0 | 结束细化的 Sigma 边界 |
+| `插值曲线` | COMBO | cosine | cosine / linear / exponential | 尾部插值分布曲线 |
+
+**插值曲线：**
+
+- **cosine**（默认）：趋近 0 时分布更密，消噪最丝滑
+- **linear**：均匀分布
+- **exponential**：能量前移，尾部大步走向末点
 
 ## 安装
 
@@ -62,9 +94,11 @@ ComfyUI-YTmmi_Tools/
 │   │   ├── display_text_node.py        # 展示文本（多重）
 │   │   ├── key_storage_node.py         # 密钥储存器
 │   │   └── pixel_size_to_ratio_node.py # 像素大小指定比例
-│   └── text/                        # YTmmi/text 分类
-│       ├── custom_llm_node.py          # 自定义LLM
-│       └── save_json_file_node.py      # 保存JSON文件
+│   ├── text/                        # YTmmi/text 分类
+│   │   ├── custom_llm_node.py          # 自定义LLM
+│   │   └── save_json_file_node.py      # 保存JSON文件
+│   └── minimax_h3/                  # YTmmi/minimax-h3 分类
+│       └── h3_sigma_refiner_node.py    # H3 低噪细节精修
 ├── js/
 │   ├── auto_fill_widget.js         # 前端扩展：执行后自动回填控件值
 │   ├── custom_llm_widget.js       # 前端扩展：自定义LLM获取模型按钮
@@ -77,6 +111,12 @@ ComfyUI-YTmmi_Tools/
 ├── requirements.txt
 └── README.md
 ```
+
+## 致谢
+
+本项目的 **H3 低噪细节精修**（H3 Sigma Refiner）节点移植自以下开源仓库，感谢原作者的实现：
+
+- [ComfyUI-YCNodes-MiniMax-H3](https://github.com/yichengup/ComfyUI-YCNodes-MiniMax-H3.git) — 专为 MiniMax H3 视频模型打造的 ComfyUI 节点包（作者：亦诚，MIT 许可）
 
 ## 许可证
 

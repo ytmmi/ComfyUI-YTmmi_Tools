@@ -69,6 +69,11 @@ try:
         NODE_CLASS_MAPPINGS as KEY_STORAGE_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as KEY_STORAGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.minimax_h3.h3_sigma_refiner_node import (
+        H3SigmaRefinerNode,
+        NODE_CLASS_MAPPINGS as H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 except ImportError:  # pragma: no cover - fallback for direct module loading
     from node.image.image_to_png_node import (
         ImageToPngNode,
@@ -140,6 +145,11 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as KEY_STORAGE_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as KEY_STORAGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.minimax_h3.h3_sigma_refiner_node import (
+        H3SigmaRefinerNode,
+        NODE_CLASS_MAPPINGS as H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 
 # 声明前端 JS 文件目录，ComfyUI 会自动加载该目录下的所有 .js 文件
 WEB_DIRECTORY = "./js"
@@ -159,6 +169,7 @@ NODE_CLASS_MAPPINGS = {
     **PREVIEW_VIDEO_NODE_CLASS_MAPPINGS,
     **DISPLAY_TEXT_NODE_CLASS_MAPPINGS,
     **KEY_STORAGE_NODE_CLASS_MAPPINGS,
+    **H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -176,6 +187,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **PREVIEW_VIDEO_NODE_DISPLAY_NAME_MAPPINGS,
     **DISPLAY_TEXT_NODE_DISPLAY_NAME_MAPPINGS,
     **KEY_STORAGE_NODE_DISPLAY_NAME_MAPPINGS,
+    **H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 __all__ = [
@@ -196,4 +208,5 @@ __all__ = [
     "PreviewVideoNode",
     "DisplayTextNode",
     "KeyStorageNode",
+    "H3SigmaRefinerNode",
 ]
