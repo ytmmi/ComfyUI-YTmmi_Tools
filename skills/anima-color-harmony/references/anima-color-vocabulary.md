@@ -1,7 +1,8 @@
 # Anima 配色词表（Color Vocabulary）
 
-配套 `SKILL.md`。四部分：**颜色标签速查**、**七套配色骨架**（含可直接抄的写法）、
-**明度 × 饱和度矩阵与情绪对照**、**主体-背景分色配方与失败修法**。
+配套 `SKILL.md`。六部分：**颜色标签速查**、**七套配色骨架**（含可直接抄的写法）、
+**明度 × 饱和度矩阵与情绪对照**、**主体-背景分色配方与失败修法**、
+**暗部环境色与大气透视**、**双色调 / 电影感调色**。
 
 标 † 的词**优先放进自然语言句子**；其余可以直接当 `general` 段标签用。
 
@@ -34,6 +35,11 @@
 | `neon lights` | 霓虹光 | 夜景双色方案的地基（品红 / 青） |
 | `backlighting` / `rim light` † | 边缘光 | 最便宜的主体-背景分离手段 |
 | `glowing` † | 自发光 | 用于光源、魔法、屏幕；滥用会糊 |
+| `teal and orange` † | 青橙调色 | 商业电影感；本身已规定配色，不要再叠一套骨架 |
+| `duotone` / `two-tone` † | 双色调 | 海报 / 极简；需点名是哪两个色 |
+| `atmospheric perspective` † | 大气透视 | 远景降饱和 + 偏冷 + 低对比，拉开纵深 |
+| `bounce light` † | 反光 | 给暗部补环境色，高级感的常见来源 |
+| `deep blue shadows` / `dark teal shadows` † | 暗部环境色 | 替代纯黑；暗部"发脏"的常用解 |
 
 > **颜色标签的共同风险**：它们约束的是"整体倾向"，不是具体色相。要精确到"哪一块是什么颜色"，
 > 必须用自然语言写（`the only saturated note is the green of her eyes`）。
@@ -163,9 +169,12 @@ An almost desaturated grey-green image with exactly one saturated red accent: he
 | 现象 | 最小处方 |
 |---|---|
 | 发灰 / 发浑 | 定一个主色相 + 一个对比色相；主体加饱和、背景降饱和 |
+| 暗部发脏 / 发死 | 暗部改用环境色（`deep blue shadows` / `dark teal shadows`），亮暗色相相反 |
 | 刺眼 / 廉价 | 删掉 `colorful`；只留一个高饱和，其余降到 `muted colors` |
+| 互补交界振颤 | 错开明度：一边亮一边暗，或只让一边高饱和 |
 | 主体陷进背景 | 加温度或明度分离，再补 `rim light` |
 | 只有一个调子 | 拉开明度跨度，或加一个**点名物体**的强调色 |
+| 前后景粘成一片 | 加 `atmospheric perspective`，远景降饱和 + 偏冷 + 低对比 |
 | 色彩割裂 | 收敛到主 / 辅 / 强调三色，其余去饱和 |
 | 太花 | 删 `gradient background` / `colorful background`，改 `simple background` |
 | 与画风冲突 | 极简平涂就删彩色光斑，回到 `flat color` + `limited palette` |
@@ -176,10 +185,68 @@ An almost desaturated grey-green image with exactly one saturated red accent: he
 - [ ] 是不是**只用了一套**配色骨架？
 - [ ] 主 / 辅 / 强调是否清楚？颜色数量收敛了吗（不是每个元素一个颜色）？
 - [ ] 主体与背景之间**至少做了一层分离**（温度 / 明度 / 饱和度 / 色相 / 边缘光）？
+- [ ] 暗部写的是**环境色**还是"固有色变暗"？亮部与暗部的色相相反吗？
+- [ ] 有远景时，**大气透视**做了吗（远景降饱和 + 偏冷 + 低对比）？
 - [ ] 光的颜色交代了吗？整张图的基调能用一句话说清吗？
 - [ ] 明度 × 饱和度的落点与想要的情绪一致吗（别停在"中明度中饱和"）？
+- [ ] 互补对撞时**明度错开**了吗（不是两边都又亮又饱和）？
 - [ ] 颜色标签是否 ≤3 个，其余都写进自然语言了？
 - [ ] 有没有写互斥组合（`vibrant colors` + `muted colors`、`high contrast` + `low contrast`、
       `monochrome` + 彩色词）？
+- [ ] 用了 `teal and orange` / `duotone` 之类**自带配色**的词时，是否又叠了一套骨架？
 - [ ] 用户已经指定的颜色 / 情绪，是否一个字都没改？
 - [ ] 正文里没有宽高比、分辨率、种子、CFG、步数、模型名？
+
+## 9. 暗部环境色与大气透视（纵深与通透）
+
+### 9.1 暗部不是"固有色变暗"
+
+把阴影写成同一个颜色的低明度版，是"发灰 / 发脏"最隐蔽的成因。暗部的颜色应当来自
+**环境光**，并且**与亮部色相相反**：
+
+```text
+暖光冷影  warm golden light with cool blue shadows
+冷光暖影  cool moonlight with warm amber bounce light in the shadows
+```
+
+| 反面写法 | 问题 | 改法 |
+|---|---|---|
+| `black shadows` | 纯黑压死颜色，画面发闷 | `deep blue shadows` / `dark teal shadows` |
+| `darker red clothes` | 暗部只是固有色变暗 → 灰 | 暗部改成环境色（冷影或暖影） |
+| 亮暗同色相 | 缺冷暖对比，画面平 | 亮暖暗冷（或亮冷暗暖） |
+
+- `bounce light`（反光）是给暗部补环境色最省事的词，高级感常见来源；
+- 与 `rim light` 分工：`rim light` 勾**轮廓**（分离主体与背景），`bounce light` 补**暗部**（通透度）。
+
+### 9.2 大气透视（有远景就必须做）
+
+远景**降饱和 + 偏冷 + 提明度 + 降对比**，否则前后景粘成一片、没有纵深：
+
+| 层次 | 颜色处理 |
+|---|---|
+| 前景 | 饱和最高、对比最强、色相最纯 |
+| 中景 | 略降饱和、对比减弱 |
+| 远景 | 明显降饱和 + 偏冷偏灰 + 低对比 |
+
+```text
+atmospheric perspective, hazy distant background
+the distant towers lose saturation, lift in value and drop in contrast
+```
+
+> **别和第 6 节的分色搞混**：分色管主体**跳出**背景（局部对比），
+> 大气透视管**纵深**（整体由近到远的衰减）。两者可以同时用。
+
+## 10. 双色调 / 电影感调色（用户点名时直接用）
+
+这些词**本身就规定了配色**，用了就不要再叠一套骨架（会互相稀释）：
+
+| 名称 | 写法 | 观感 | 注意 |
+|---|---|---|---|
+| 青橙 | `teal and orange color grading` | 商业电影感：肤色暖、环境冷 | 最稳的电影调色，人物题材首选 |
+| 双色调 | `duotone, two-tone palette` + 点名两色 | 海报、极简、强风格化 | 必须点名是哪两个色，否则会撒开 |
+| 单色调 | `monochrome` + 点名色相 | 高级、克制 | 要指定明度跨度，否则是一张灰图 |
+| 褪色胶片 | `faded colors, film grain, low contrast` | 回忆、复古 | 与高饱和词互斥 |
+| 霓虹双色 | `neon lights, magenta and cyan glow` | 赛博夜景 | 配 `wet asphalt reflections` 最稳 |
+
+> **青橙为什么好用**：它同时满足第 6 节的温度分离（暖主体 / 冷背景）
+> 与第 3 节的明度错开（暖亮 / 冷暗），等于一次做完两件事。

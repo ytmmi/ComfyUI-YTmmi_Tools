@@ -99,8 +99,9 @@ ANIMA_FORMAT_NOTE = (
     "只有当用户明确要求负面词 / negative prompt，或表示自己那边没有设置负面词时，"
     "才追加第二段 `Negative prompt`。"
     "不要输出开头说明、结尾建议、解释、总结、前言或后记；"
-    "不要把分辨率、宽高比、种子、CFG、步数、采样器或模型文件名写进提示词"
-    "（用户明确索要参数建议时，才另起一段 `Suggested settings` 单列），"
+    "不要把分辨率、宽高比、种子、CFG、步数、采样器或模型文件名写进提示词，"
+    "也不要另附 `Suggested settings` 或任何参数数值"
+    "（被问到参数时只回一句「由工作流设置决定」），"
     "也不要复述本条要求。"
 )
 
@@ -372,6 +373,43 @@ def _discover_skills(root: Path, source: str) -> list:
     return discovered
 
 
+def _skill_file_stamps(skill_root: Path) -> tuple:
+    """收集单个 skills 目录内**全部**文件的 (相对路径, mtime_ns, size)。
+
+    必须覆盖 `references/` 等子目录，而不是只签 `SKILL.md` / `meta.yaml`：
+    参考资料同样是交付内容的一部分（渐进式披露时由模型 `READ:` 按需读取），
+    只签两个固定文件会让「改了参考资料、签名却不变」——节点缓存不失效、
+    `IS_CHANGED` 也不变，用户读到的仍是旧内容且没有任何提示。
+
+    跳过符号链接（防止越界与目录环），单个文件读取失败时跳过而非中断。
+    """
+    stamps = []
+    stack = [skill_root]
+    while stack:
+        current = stack.pop()
+        try:
+            children = sorted(current.iterdir(), key=lambda item: item.name.casefold())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                if child.is_symlink():
+                    continue
+                if child.is_dir():
+                    stack.append(child)
+                    continue
+                if not child.is_file():
+                    continue
+                stat = child.stat()
+            except OSError:
+                continue
+            stamps.append(
+                (child.relative_to(skill_root).as_posix(), stat.st_mtime_ns, stat.st_size)
+            )
+    stamps.sort(key=lambda item: item[0])
+    return tuple(stamps)
+
+
 def _dir_signature(root: Path) -> tuple:
     """目录签名：用于缓存失效与 IS_CHANGED（skills 变更后自动重新发现）。"""
     if not root.is_dir():
@@ -380,15 +418,7 @@ def _dir_signature(root: Path) -> tuple:
     for child in sorted(root.iterdir(), key=lambda item: item.name.casefold()):
         if not child.is_dir():
             continue
-        stamps = []
-        for filename in ("SKILL.md", "meta.yaml"):
-            path = child / filename
-            try:
-                stat = path.stat()
-                stamps.append((filename, stat.st_mtime_ns, stat.st_size))
-            except OSError:
-                stamps.append((filename, None, None))
-        entries.append((child.name, tuple(stamps)))
+        entries.append((child.name, _skill_file_stamps(child)))
     return tuple(entries)
 
 
@@ -634,6 +664,9 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "（其中的「高杠杆规则」是全家族通用硬规则：主画师必选、权重用大数且加权标签总数 ≤4、"
             "取景对抗自然语言漂移、Hybrid 三层混合、动作与天气要有可见后果），"
             "再按需读取具体 skills 的 SKILL.md。"
+            "涉及**配色 / 色调 / 颜色关系**（发灰、刺眼、主体陷进背景、整张只剩一个调子，"
+            "或用户点名 pastel / neon / sepia / duotone / 电影感调色）时，"
+            "另读 `anima-color-harmony`（配色骨架、明度×饱和度结构、主体-背景分色、光的颜色）。"
         )
     if is_qwen_image_mode(normalized):
         return (
@@ -970,6 +1003,12 @@ class SkillsManagerNode:
         "h3 prompt",
         "qwen image prompt",
         "图像提示词",
+        "anima",
+        "二次元",
+        "配色",
+        "颜色搭配",
+        "color harmony",
+        "palette",
     ]
 
     @classmethod

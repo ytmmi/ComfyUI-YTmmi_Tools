@@ -1,8 +1,8 @@
 display-name-zh: Anima 配色与颜色搭配
 display-name-en: Anima Color Harmony
-version: 1.0.0
+version: 1.1.0
 tag-cn: 提示词 / 配色 / 色彩
 tag-en: Prompt / Color / Palette
-summary-cn: 用配色骨架、明度与饱和度结构、主体与背景分色、光的颜色来优化 Anima 提示词的整体配色，并给出常见配色失败的提示词级修法。
-summary-en: Optimize an Anima prompt's overall palette with hue schemes, value and saturation structure, subject-versus-background colour separation and lighting colour, plus prompt-level fixes for the usual colour failures.
+summary-cn: 用配色骨架、明度与饱和度结构、主体与背景分色、暗部环境色与大气透视、光的颜色来优化 Anima 提示词的整体配色，并给出常见配色失败与双色调调色的提示词级写法。
+summary-en: Optimize an Anima prompt's overall palette with hue schemes, value and saturation structure, subject-versus-background colour separation, shadow colour and atmospheric perspective, plus prompt-level fixes for the usual colour failures and duotone / teal-and-orange grading.
 source: web
