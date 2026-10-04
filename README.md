@@ -24,7 +24,7 @@ ComfyUI 自定义节点工具集，提供图片保存、JSON 文件导出、图�
 - **展示文本（多重）** — 展示上游节点的字符串信息（数字、字符串、文本、JSON 等），支持 0~8 号共 9 个输入口，默认只显示「输入0」，连接后自动显现下一个输入口；2 个及以上输入自动按输入口序号分隔标注展示；音频、潜空间、视频等类型自动过滤不展示；**输入口已连接但内容为空时显示 `[空文本]` 占位提示**（与「未连接」可区分）
 - **密钥储存器** — 加密保存 API 密钥与接口地址（以系统用户名前5位派生密钥，防止插件目录被复制后泄露），点击「保存」加密存储、「删除密钥」删除「选择密钥」下拉中选中的预设；执行后按「选择密钥」下拉名称输出密钥/接口地址
 - **自定义LLM** — 调用任意 OpenAI 兼容格式的在线大模型接口（API Key + 接口地址 + 模型名 + 提示词），返回生成文本；模型名为下拉菜单，点击节点上的「获取模型」按钮自动拉取接口可用模型列表，支持温度/最大token/top_p/种子/生成后控制；支持 **skills 输入接口**（接入「skills管理器」输出的指导文本或自动清单；自动清单时与模型多轮按需读取，无需 tools 支持）；支持图片输入（最多 9 张，默认只显示 1 个图片输入口，连接后自动显现下一张），按 OpenAI 多模态格式发送，可适配 DeepSeek V4.1 Flash（deepseek-flash）等支持视觉输入的模型
-- **skills管理器** — 管理并读取插件 `skills/`（内置）与 `custom_skills/`（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露，首轮省约 84% 上下文），选具体 skills 时输出其完整指导文本；「模式」可按任务家族筛选（H3 视频 / Qwen-Image 文生图 / Qwen-Image 图像编辑）
+- **skills管理器** — 管理并读取插件 `skills/`（内置）与 `custom_skills/`（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露，按家族筛选首轮省约 90% 上下文），选具体 skills 时输出其完整指导文本；「模式」可按任务家族筛选（H3 视频 / Qwen-Image 文生图 / Qwen-Image 图像编辑 / Anima 二次元插画）；**所有操作不弹窗**，刷新结果通过按钮文字与控制台日志反馈
 
 ### 二维码
 
@@ -50,16 +50,17 @@ ComfyUI 自定义节点工具集，提供图片保存、JSON 文件导出、图�
 | **自动**（默认） | 只把 skills **清单与读取协议**发给模型，模型按需请求读取正文，多轮往返直到给出答案（**渐进式披露**） | 首轮约 6.7k 字符 |
 | 具体 skills | 直接输出该 skills 的完整指导文本（含 `references/`），单轮请求 | 如 h3-prompt-writing 约 42k 字符 |
 
-**实测对比**（11 个内置 skills，`模式` = `auto`）：
+**实测对比**（22 个内置 skills，`模式` = `auto`）：
 
 | 方式 | 字符数 |
 |---|---|
-| 自动模式首轮（清单 + 协议，不筛选） | 7,525 |
-| 自动模式首轮（`模式` = `qwen-image-t2i`，按家族筛选） | 735 |
+| 自动模式首轮（清单 + 协议，不筛选） | 12,358 |
+| 自动模式首轮（`模式` = `qwen-image-t2i`，按家族筛选） | 813 |
+| 自动模式首轮（`模式` = `Anima`，按家族筛选） | 5,245 |
 | 固定发送 h3-prompt-writing 全文 | 42,017 |
-| 固定发送全部 11 个 skills 全文 | 272,019 |
+| 固定发送全部 22 个 skills 全文 | 395,270 |
 
-自动模式首轮比固定发送单个 skills 全文**省约 84% 上下文**，且模型可自行决定是否需要 skills、需要哪个、以及是否需要进一步读取参考文件。
+自动模式首轮比固定发送单个 skills 全文**省约 71% 上下文**（按家族筛选时约 88%~98%），且模型可自行决定是否需要 skills、需要哪个、以及是否需要进一步读取参考文件。
 
 ### 渐进式披露（自动模式）
 
@@ -98,6 +99,17 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | `最大字符数` | INT | 72000 | 指导文本字符上限，超出后不再追加参考资料 |
 | `附加说明` | STRING | 按 skills | 追加到 skills 文本末尾的补充说明；**按所选 skills 自动填充输出强调**（抑制开头说明/结尾建议等无关元素），可自行删除或改写 |
 
+#### 不弹窗的反馈方式
+
+「刷新skills」等操作**不使用 alert / confirm / 自绘弹窗**，避免打断画布操作：
+
+| 情形 | 反馈 |
+|---|---|
+| 刷新成功 | 按钮文字短暂变为绿色 `✓ 已发现 N 个`（约 2.2 秒后复原），并在 `console.info` 打印 skills 列表 |
+| 刷新失败 | 按钮文字短暂变为红色 `✗ 刷新失败`，具体原因写 `console.warn`（F12 可见） |
+| 未发现任何 skills | 按钮显示 `✗ 未发现 skills`，`console.warn` 给出「放哪里、要什么文件」的说明 |
+| 节点创建时的自动刷新 | **静默**：不改按钮文字，只更新下拉选项与控制台日志 |
+
 #### 选择skills 与 模式 的联动
 
 **「模式」只在「选择skills」为 `自动` 时生效**——因为模式描述的是"自动挑选 skills 时限定哪个任务家族"，一旦手动指定了 skills，就由该 skills 自身决定输出，模式不再参与。
@@ -105,7 +117,7 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | 「选择skills」 | 「模式」 | 实际效果 |
 |---|---|---|
 | `自动` | `auto` | 列出全部 skills，不筛选 |
-| `自动` | `H3-*` / `qwen-image-*` | 按任务家族筛选清单 |
+| `自动` | `H3-*` / `qwen-image-*` / `Anima` | 按任务家族筛选清单 |
 | 具体 skills | 任意值 | **模式失效**：不筛选，且加载该 skills 的**全部**参考资料 |
 
 前端会在切换到具体 skills 时**自动把「模式」切回 `auto`**，切回 `自动` 时再恢复你此前选的模式（不会被清掉）。这样界面上始终不会出现"模式看起来选了但实际没生效"的困惑状态。
@@ -118,19 +130,23 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 
 | `模式` | 任务家族 | 「自动」清单包含 |
 |---|---|---|
-| `auto` | 全部 | 11 个（不筛选） |
-| `H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` / `H3-ref2va` | H3 视频 | 9 个（排除 2 个 Qwen-Image） |
+| `auto` | 全部 | 22 个（不筛选） |
+| `H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` / `H3-ref2va` | H3 视频 | 9 个（排除 2 个 Qwen-Image 与 11 个 Anima） |
 | `qwen-image-t2i` | Qwen-Image 文生图 | **仅 `qwen-image-t2i-prompt`** |
 | `qwen-image-edit` | Qwen-Image 图像编辑 | **仅 `qwen-image-edit-prompt`** |
+| `Anima` | Anima 二次元插画 | **仅 11 个 `anima-*`** |
 
-**筛选的意义**：模式已表明任务类型时，清单里不应再出现无关家族的 skills，否则模型可能路由到错误家族（例如选了 `qwen-image-t2i` 却读到 H3 视频 skills）。实测清单体积：
+非 `auto` 模式的清单还会带一行**家族提示**（例：`当前模式：Anima（二次元插画）——本清单仅列出 Anima 家族的 skills，请只在本家族内选择`），进一步降低模型路由到错误家族的概率。
 
-| `模式` | 清单字符数 | 含 h3 | 含 t2i | 含 edit | 含风格类 |
-|---|---|---|---|---|---|
-| `auto` | 7,525 | ✓ | ✓ | ✓ | ✓ |
-| `H3-t2va` | 6,659 | ✓ | — | — | ✓ |
-| `qwen-image-t2i` | 735 | — | ✓ | — | — |
-| `qwen-image-edit` | 785 | — | — | ✓ | — |
+**筛选的意义**：模式已表明任务类型时，清单里不应再出现无关家族的 skills，否则模型可能路由到错误家族（例如选了 `Anima` 却读到 H3 视频 skills）。实测清单体积（22 个内置 skills）：
+
+| `模式` | 清单字符数 | 筛选后 skills 数 |
+|---|---|---|
+| `auto` | 12,358 | 22 |
+| `H3-t2va` | 6,743 | 9 |
+| `qwen-image-t2i` | 813 | 1 |
+| `qwen-image-edit` | 863 | 1 |
+| `Anima` | 5,245 | 11 |
 
 > **模式在节点内的唯一实际作用就是「任务家族筛选」。** 自动清单只列 skills 的 id 与描述（不含正文），模型 `READ:` 某个 skills 时读到的也只是它的 `SKILL.md`，参考资料需另行 `READ: <skills>/references/xxx`——因此模式无法、也不会去挑参考资料。手动分支下模式已被中和，两份指南一律加载。
 >
@@ -140,16 +156,29 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 
 ### 内置 skills
 
-`skills/` 内置 11 个 skills：
+`skills/` 内置 22 个 skills（4 个家族）：
 
-| skills | 说明 |
-|---|---|
-| `h3-prompt-writing` | MiniMax H3 视频提示词书写（T2VA/I2VA/FL2VA/L2VA/Ref2VA） |
-| `qwen-image-t2i-prompt` | Qwen-Image 2.1 文生图提示词改写（八步观察者视角描述 + `wh_ratio`） |
-| `qwen-image-edit-prompt` | Qwen-Image 2.1 图像编辑提示词改写（属性解耦 + `wh_ratio`/`ratio_follow`） |
-| 其余 8 个 | MiniMax H3 官方风格类 skills（3D 动画、品牌宣传、纸艺定格等） |
+| 家族 | skills | 说明 |
+|---|---|---|
+| H3 视频 | `h3-prompt-writing` | MiniMax H3 视频提示词书写（T2VA/I2VA/FL2VA/L2VA/Ref2VA） |
+| H3 视频 | 其余 8 个 | MiniMax H3 官方风格类 skills（3D 动画、品牌宣传、纸艺定格等） |
+| Qwen-Image | `qwen-image-t2i-prompt` | Qwen-Image 2.1 文生图提示词改写（八步观察者视角描述 + `wh_ratio`） |
+| Qwen-Image | `qwen-image-edit-prompt` | Qwen-Image 2.1 图像编辑提示词改写（属性解耦 + `wh_ratio`/`ratio_follow`） |
+| **Anima** | `anima-prompt-format` | Anima 提示词格式化（官方标签顺序 + 版本化质量前缀 + 两段式输出） |
+| **Anima** | `anima-motion-boost` | 动作增强（动作节拍、动态构图、运动证据、避免解剖崩坏） |
+| **Anima** | `anima-style-control` | 风格控制（媒介 × 渲染 × 年代 × 版式的风格分类与锁定） |
+| **Anima** | `anima-style-boost` | 风格增强（线 → 上色 → 色彩 → 光照 → 背景的分层增强阶梯） |
+| **Anima** | `anima-prompt-optimize` | 提示词优化（顺序/空格/一致性/冲突/冗余/版本前缀的逐项修复） |
+| **Anima** | `anima-composition-optimize` | 构图优化（景别 × 机位 × 主体摆放 × 前后景层次） |
+| **Anima** | `anima-prompt-artist` | 画师标签与混合（`@artist` 强制前缀、多画师权重兑配） |
+| **Anima** | `anima-prompt-character` | 角色一致性与三视图（身份锚点 + 多视图/多表情角色表） |
+| **Anima** | `anima-prompt-negative` | 负面提示词与质量前缀（版本矩阵 + 按失败域的负面词表） |
+| **Anima** | `anima-prompt-regional` | 分区与局部重绘（Regional LLLite 分区块 / inpaint 目标成品写法） |
+| **Anima** | `anima-lora-trigger` | LoRA 触发词与权重（Anima 权重需比 SDXL 更高，多 LoRA 角色分派） |
 
 其中 `qwen-image-t2i-prompt` 与 `qwen-image-edit-prompt` 来自用户提供的 Qwen-Image 2.1 系统提示词，已改写为 skills 形式：`SKILL.md` 为工作流摘要，**完整原始系统提示词逐字保存在 `references/` 下**（SHA256 与源文件一致），由 skills管理器一并加载。
+
+**Anima 家族**基于 [CircleStone Labs / Comfy Org 官方 Anima 模型卡](https://huggingface.co/circlestone-labs/Anima)、[ComfyUI 官方 Anima 教程](https://docs.comfy.org/tutorials/image/anima/anima) 与社区提示词工程实践整理，全部 11 个 Anima skills 共用一份基准文档 [`skills/anima-prompt-format/references/anima-prompt-baseline.md`](skills/anima-prompt-format/references/anima-prompt-baseline.md)（标签顺序、质量前缀、权重语法、版本差异、能力边界）。Anima 家族的输出默认是**只给正面提示词**，且**不输出任何参数数值**，因此其「附加说明」使用**专属强调**；该强调可在 `SKILL.md` front matter 用 `extra-note:` 覆盖。
 
 ### 附加说明的默认强调
 
@@ -167,7 +196,34 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 |---|---|
 | 产出单一交付物（id 含 `prompt`）：`h3-prompt-writing`、`qwen-image-t2i-prompt`、`qwen-image-edit-prompt` | 上面的强调说明 |
 | `自动` | 同上（不预设具体 skills，用同一套通用强调） |
+| **Anima 家族（id 含 `anima`）** | **专属强调**（见下）：**默认只给正面提示词**，负面仅在明确要求时追加，并禁止把分辨率/CFG/步数/采样器写进提示词 |
 | 其余风格类 skills | 留空（它们会输出分镜、制作方案，且可能含澄清提问与方案选项，强加会破坏其交互设计） |
+
+**Anima 家族的专属强调**（`ANIMA_FORMAT_NOTE`）——该家族默认**只交付正面提示词**（负面词只在用户明确要求、或用户表示自己那边没有负面词时才追加），并且**任何参数都不出现在输出里**：
+
+```
+【输出要求】只输出 Anima 提示词正文本身：**默认只给正面提示词**，不要输出负面提示词、
+不要加 `Positive prompt` 之类的标题行、不要加 Markdown 代码块围栏。只有当用户明确要求
+负面词 / negative prompt，或表示自己那边没有设置负面词时，才追加第二段 `Negative prompt`。
+不要输出开头说明、结尾建议、解释、总结、前言或后记；不要把分辨率、宽高比、种子、CFG、
+步数、采样器或模型文件名写进提示词，也不要另附 `Suggested settings` 或任何参数数值——
+这些都属于 ComfyUI 工作流设置，被问到时只回一句「由工作流设置决定」。也不要复述本条要求。
+```
+
+**Anima skills 的输出默认**（11 个 skills 的 `## 输出契约` 小节统一约定）：
+
+| 情形 | 输出 |
+|---|---|
+| 用户没提负面词（默认） | **只给正面提示词正文**，无标题行、无代码块围栏，可直接粘进生成节点 |
+| 用户明确要负面词 / 说"我这边没有负面词" | `Positive prompt` / `Negative prompt` 两段，负面词按对应小节裁剪 |
+| 问到参数（宽高比 / 分辨率 / 步数 / CFG / 采样器 / 种子） | **只回一句「由工作流设置决定」**，不给数值、不附 `Suggested settings` 段 |
+| `anima-prompt-negative` 被调用 | 默认成对交付（触发条件本身就是用户要负面词） |
+| `anima-prompt-optimize` 且原提示词自带负面词 | 输出两段（修复负面词） |
+| `anima-prompt-regional` | `Global prompt` + 区域块 / `Whole image context` + `Masked area prompt` 为**结构必需**块标签；`Negative prompt` 仅在明确要求时追加 |
+
+> 各 skills 的 `## 示例` 仍按含 `Negative prompt` 的两段形态演示，用来说明"用户要负面词时该怎么写"。
+> **Anima skills 正文里不再出现任何具体参数值**（分辨率区间、步数、CFG、采样器名等一律移除），
+> 从源头消除"模型顺手把参数段一起输出"的可能；参数参考只在 [Anima 官方模型卡](https://huggingface.co/circlestone-labs/Anima) 与 [ComfyUI 官方教程](https://docs.comfy.org/tutorials/image/anima/anima)。
 
 行为规则：
 
@@ -306,7 +362,7 @@ ComfyUI-YTmmi_Tools/
 │   │   └── save_json_file_node.py      # 保存JSON文件
 │   └── minimax_h3/                  # YTmmi/minimax-h3 分类
 │       └── h3_sigma_refiner_node.py    # H3 低噪细节精修
-├── skills/                          # 内置 skills（11 个：MiniMax H3 官方 9 个 + Qwen-Image 2.1 提示词 2 个）
+├── skills/                          # 内置 skills（22 个：MiniMax H3 官方 9 个 + Qwen-Image 2.1 提示词 2 个 + Anima 二次元 11 个）
 ├── custom_skills/                   # 自定义 skills（用户自行添加）
 ├── js/
 │   ├── auto_fill_widget.js         # 前端扩展：执行后自动回填控件值
@@ -332,6 +388,7 @@ ComfyUI-YTmmi_Tools/
   - **skills管理器** 与 **自定义LLM 的 skills 接口** 参考该仓库的 skills 管理方式实现
   - `skills/` 目录中的 9 个 MiniMax H3 skills 来自 [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) 官方 skills
 - **Qwen-Image 2.1 提示词改写**（`qwen-image-t2i-prompt`、`qwen-image-edit-prompt`）— 由用户提供的 Qwen-Image 2.1 系统提示词改写为 skills；原始系统提示词逐字保留在各自的 `references/` 下（SHA256 与源文件一致）
+- **Anima 二次元插画 skills**（`anima-*`，11 个）— 基于 [CircleStone Labs / Comfy Org Anima 官方模型卡](https://huggingface.co/circlestone-labs/Anima) 与 [ComfyUI 官方 Anima 教程](https://docs.comfy.org/tutorials/image/anima/anima) 整理；分区/局部重绘与提示词工程写法参考社区项目 [anima-prompt-crafter-skill](https://github.com/AI-KSK/anima-prompt-crafter-skill) 与 [comfyui-good-anima](https://github.com/ShiroEirin/comfyui-good-anima)（Anima 模型本身由 CircleStone Labs 发布，遵循其非商业许可）
 
 ## 许可证
 
