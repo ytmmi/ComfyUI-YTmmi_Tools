@@ -1,7 +1,7 @@
 ---
 name: anima-composition-optimize
 description: Fix and design framing in Anima prompts with shot size, camera angle, view direction, subject placement, visual hierarchy, depth layering and negative space. Use when an Anima render puts the subject too small, centers everything, lets characters overlap without hierarchy or lets the background steal focus, and when a portrait, poster/key-visual, group shot or scenery-led image needs its framing rebuilt from prompt text alone.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Anima 构图优化（Composition Optimization）
@@ -74,7 +74,9 @@ version: 1.1.0
 | 群像 | 先定 1 个主位，其余是陪位；高低错落 |
 | 场景主导 | 环境是主体，人是尺度参照（人小是对的） |
 
-用途决定景别基线。**没有用途就先问，或按"默认立绘"处理并在交付时说明假设。**
+用途决定景别基线。**用户没说用途时不要空转**：按题材自己定一个基线（实在拿不准就按"默认立绘"），
+并考虑是否值得配一个特殊镜头（见「特殊情况：鱼眼 / 球面 / 极端透视」一节）。
+**不要为了构图反问用户，也不要在提示词正文之外附加说明**——输出契约只给正文。
 
 ### 2. 选景别（从紧到松）
 
@@ -130,6 +132,9 @@ version: 1.1.0
 ### 9. 自检（静默）
 
 - 主体在画幅里占比与用途匹配吗？
+- **用户没指定构图时，是否"有主张地"选了一个装置**，而不是永远回落到 `cowboy shot` + `eye level` 的最保守默认值？
+- 若用了鱼眼 / 球面 / 极端透视：是不是**只用了一个**？与题材、画幅匹配吗？自然语言首句点明了吗？
+  是不是表格类场景（那样必须禁用）？
 - **取景 / 角度标签加权了没有**（`(cowboy shot:2)`）？自然语言**首句**有没有把取景写死？
 - 全文加权标签是否 **≤4 个**，且优先给了取景 / 角度？
 - 视觉层级是否靠至少两个杠杆建立？
@@ -137,6 +142,36 @@ version: 1.1.0
 - 构图词是否都落在 `general` 段？
 - 有没有把宽高比 / 分辨率 / 参数漏进正文？
 - 背景标签量是否超过全文的三分之一（超过就会抢焦）？
+
+## 特殊情况：鱼眼 / 球面 / 极端透视（可自主选用）
+
+**用户没指定构图或镜头时，不要永远回落到最保守的默认值**（`cowboy shot` + `eye level` + `centered`）。
+按题材**主动挑一个**合适的特殊装置写进提示词，让画面有主张——
+**直接写、不反问、不在正文外解释**（输出契约只允许提示词正文）。
+
+按题材挑：
+
+| 题材 | 推荐的特殊装置 | 理由 |
+|---|---|---|
+| 动作 / 竞速 / 街头 / 极限 | `fisheye lens`、`extreme foreshortening`、`wide angle lens` | 变形本身就是速度与冲击 |
+| 梦境 / 宇宙 / 万花筒 / 被环境包裹 | `spherical composition`、`curved horizon` | 沉浸感，四周向中心收拢 |
+| 风景 / 群像铺陈 / 场景主导 | `panorama`、`bird's-eye view` | 横向或俯瞰铺开信息量 |
+| 建筑 / 房间 / 机械 / 概念设定 | `isometric`、`cross-section` | 结构清晰、无透视干扰 |
+| 情绪戏 / 特写 / 立绘 | **不要用变形镜头**，靠景别 + 光影 | 变形会削弱表情 |
+
+硬约束四条：
+
+1. **用户已经指定了构图 / 镜头 → 绝不覆盖**，只在他给的框架内优化；
+2. **一次只用一个新的特殊装置**，不要鱼眼 + 球面 + 等距一起上；
+3. **表格类禁用**：`character sheet` / `multiple views` / 三视图 / 分镜 / 表情表里**绝不**叠加鱼眼或球面；
+4. **必须配自然语言**，且首句就点明——特殊镜头很容易被普通标签淹没。
+
+```text
+(@artist name:2), (fisheye lens:2), dynamic pose, from below, centered, city street, neon signs, foreground debris, blurry background. The whole frame bends outward like a fisheye photograph, the street's paving lines curving up and away at the edges while she stays dead centre, one arm thrown toward the lens.
+```
+
+> 完整词表（每条的效果 / 适用 / 风险）、选用原则，以及鱼眼 / 球面 / 等距的配方，
+> 见 `references/anima-composition-vocabulary.md` 第 7 与 8.5 节。
 
 ## 取景对抗自然语言漂移（关键规则）
 

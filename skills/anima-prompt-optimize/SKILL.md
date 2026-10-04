@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-optimize
 description: Diagnose and repair an existing Anima prompt, covering tag order, underscore and spacing errors, missing subject count, a contradictory medium, overstuffed synonyms, a quality prefix that does not match the model version, a missing safety tag and vague four-word prompts. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when a prompt already exists but renders badly.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Anima 提示词优化（Prompt Optimize）
@@ -134,7 +134,14 @@ version: 1.1.0
 ```
 
 合理上限：单角色约 25~35 个标签 + 1~3 句 caption。再往上加就是冗余。
-补齐的细节属于**协调的默认选择**；用户给过设定时以其为准，并**不要**顺手编造角色名、作品名、画师名。
+补齐的细节属于**协调的默认选择**；用户给过设定时以其为准，并**不要**顺手编造角色名、作品名、LoRA 名。
+**但画师例外**：用户没给画师时，必须由你按媒介 / 年代 / 题材挑一个风格对路的知名画师
+（见 `anima-prompt-artist`），不要留空。
+
+**用户没指定构图 / 镜头时，允许自主加一个特殊装置**（`fisheye lens` 鱼眼、`spherical composition`
+球面构图、`extreme foreshortening` 极端透视、`isometric` 等距版式、`panorama` 全景等，
+见 `anima-composition-optimize`），不要永远停在最保守的默认景别上；但用户已指定构图时**绝不覆盖**，
+且一次只用**一个**特殊装置（表格类 / 三视图 / 分镜场景禁用）。
 
 **裁剪顺序**（从最先砍到最不该砍）：
 
@@ -150,7 +157,8 @@ version: 1.1.0
 - 六项检查是否都走完？有没有为了"顺手"改动用户没要求的部分？
 - 修好后的前缀是否与模型版本匹配？safety 是否还在？
 - 输出是不是只有两段？变更说明（若用户要）是否放在了提示词之后？
-- 有没有编造画师名 / 角色名 / LoRA 名？
+- 有没有编造角色名 / LoRA 名？（**画师不在此列**——用户没给时你应当自己挑一个，见上面第 8 步）
+- 用户没指定构图 / 镜头时，是否主动用上了一个合适的特殊装置（而不是停在默认景别）？
 
 ## 示例
 

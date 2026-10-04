@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-format
 description: Format any idea, brief, character concept, image description or mixed Chinese/English request into Anima-ready prompt blocks (Danbooru tags plus natural-language caption, with the official tag order and quality prefix). Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI, when the user mentions Anima, 二次元, 动漫插画, Danbooru tags or needs one consistent positive/negative prompt pair.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Anima 提示词格式化（Prompt Format）
@@ -116,6 +116,10 @@ version: 1.1.0
   不要留空、也不要退回纯风格词；挑不好或拿不准拼写时再看 `anima-prompt-artist`；
 - 取景 / 角度标签按第 4 步的**对抗漂移**规则加权（`(upper body:2)`）；
   **全文带权重的标签不超过 4 个**，优先分给取景与角度；
+- **用户没指定构图 / 镜头时**：允许你**自主**挑一个与题材匹配的构图或**特殊镜头**
+  （`fisheye lens`、`spherical composition`、`extreme foreshortening`、`isometric` 等，
+  见 `anima-composition-optimize` 的「特殊情况」一节），**不要永远回落到最保守的默认值**；
+  但① 用户已经指定构图时**绝不覆盖**，② 一次只用**一个**特殊装置，③ 表格类场景（三视图 / 分镜）禁用；
 - Danbooru 与 Gelbooru 写法冲突时**用 Gelbooru 版本**；
 - 不要堆砌同义质量词；Anima 用随机标签丢弃训练，**不需要标签堆满**。
 
