@@ -20,6 +20,12 @@ import { app } from "../../scripts/app.js";
  *   依次类推，最多 图片8（共 9 个）；
  * - 断开末尾图片输入口时自动回收该输入口；
  * - 加载含链接的工作流时，会根据已有链接恢复对应图片输入口。
+ *
+ * 「生成后控制」说明：
+ * - 「种子」在 Python 端声明了官方的 control_after_generate 标记，前端会
+ *   自动在其旁生成「生成后控制」下拉（固定值/递增值/递减值/随机值）；
+ * - 该下拉与种子的联动完全由 ComfyUI 官方前端实现（applyWidgetControl），
+ *   生成后由前端本地改写种子控件值，因此本扩展**无需**做任何回填处理。
  */
 app.registerExtension({
   name: "YTmmi.CustomLLM",

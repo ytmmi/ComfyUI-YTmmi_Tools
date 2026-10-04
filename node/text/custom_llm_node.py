@@ -24,11 +24,23 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 - temperature：采样温度（0~2）
 - max_tokens：生成的最大 token 数
 - top_p：核采样（可选，默认 1.0）
-- seed：随机种子（可选，-1 表示不设置，由服务端随机）
+- seed：随机种子（可选，-1 表示不设置，由服务端随机）。
+  该输入带官方 control_after_generate 标记，前端会自动在「种子」旁生成「生成后控制」
+  下拉（固定值/递增值/递减值/随机值），纯客户端控制种子的变化，详见下方说明
 - 图片0~图片8：可选图像输入（IMAGE 类型，最多 9 张）。前端默认只显示「图片0」，
   连接后自动显现下一张；接入图片后，用户消息按 OpenAI 多模态格式发送（content 为
   数组，图片编码为 JPEG base64 data URL），兼容 DeepSeek V4.1 Flash（模型 id：
   deepseek-flash）等支持视觉输入的模型。
+
+生成后控制（control_after_generate）：
+「种子」使用 ComfyUI 官方的 control_after_generate 机制（与 KSampler 等节点完全
+一致），**仅控制种子本身**，节点后端不参与：
+
+- 后端只在「种子」输入上声明 ``"control_after_generate": True``；
+- 前端据此自动生成配套的「生成后控制」下拉（固定值/递增值/递减值/随机值），
+  该下拉 ``serialize: false``，**不会出现在发给后端的 prompt 里**；
+- 生成结束后由前端在本地按所选模式改写「种子」控件值（下一次执行即用新种子），
+  因此节点无需状态缓存、无需回填 ui、也无需 IS_CHANGED。
 
 输出：模型返回的文本字符串。
 """
@@ -127,6 +139,10 @@ SKILLS_TOTAL_CHARS_DEFAULT = 300000
 
 # 空响应自动重试次数（仅针对 finish_reason 正常结束的瞬时空响应）
 EMPTY_OUTPUT_RETRIES = 2
+
+# 种子取值范围（与「种子」控件 min/max 一致）
+SEED_MIN = -1
+SEED_MAX = 0x7FFFFFFF
 
 
 class EmptyLLMOutputError(RuntimeError):
@@ -269,7 +285,7 @@ class CustomLLMNode:
     """自定义在线 LLM（OpenAI 兼容接口）。"""
 
     CATEGORY = "YTmmi/text"
-    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型）、温度/最大token/top_p/种子'
+    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型）、温度/最大token/top_p/种子（含官方生成后控制）'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -337,7 +353,20 @@ class CustomLLMNode:
                     },
                 ),
                 "核采样（top_p）": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05}),
-                "种子": ("INT", {"default": -1, "min": -1, "max": 0x7FFFFFFF}),
+                # 「种子」使用 ComfyUI 官方 control_after_generate 机制（与 KSampler 一致）：
+                # 前端据此自动生成配套的「生成后控制」下拉（固定值/递增值/递减值/随机值），
+                # 该下拉 serialize:false 不会发给后端，仅由前端在生成后改写种子控件值。
+                "种子": (
+                    "INT",
+                    {
+                        "default": -1,
+                        "min": SEED_MIN,
+                        "max": SEED_MAX,
+                        "control_after_generate": True,
+                        "tooltip": "随机种子；-1 表示不发送 seed（由服务端随机）。"
+                        "旁边的「生成后控制」可让它在每次生成后自动变化",
+                    },
+                ),
                 # 图片输入口：图片0 ~ 图片8（IMAGE 类型）。前端默认只显示「图片0」，
                 # 连接后自动显现下一张，最多 9 张（与 MAX_IMAGES 一致）
                 **{f"图片{i}": ("IMAGE",) for i in range(MAX_IMAGES)},
@@ -349,7 +378,7 @@ class CustomLLMNode:
     FUNCTION = "chat"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)
-    SEARCH_ALIASES = ["llm", "chat", "大模型", "ai对话", "openai", "skills", "技能"]
+    SEARCH_ALIASES = ["llm", "chat", "大模型", "ai对话", "openai", "skills", "技能", "种子", "生成后控制"]
 
     def chat(
         self,
@@ -445,6 +474,7 @@ class CustomLLMNode:
 
         # skills 为「自动」清单时，进入多轮按需读取（渐进式披露）循环；
         # 否则单轮请求，行为与之前一致。
+        # 「生成后控制」由前端在生成后改写「种子」控件值实现，节点后端不参与。
         if is_auto_skills_text is not None and is_auto_skills_text(skills):
             return self._chat_with_skills_disclosure(
                 url=url,
