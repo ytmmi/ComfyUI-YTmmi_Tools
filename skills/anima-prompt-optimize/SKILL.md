@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-optimize
 description: Diagnose and repair an existing Anima prompt, covering tag order, underscore and spacing errors, missing subject count, a contradictory medium, overstuffed synonyms, a quality prefix that does not match the model version, a missing safety tag and vague four-word prompts. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when a prompt already exists but renders badly.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 提示词优化（Prompt Optimize）
@@ -67,7 +67,7 @@ version: 1.0.0
 | score 标签丢了下划线 | `score 7` | 改回 `score_7`（score 标签是唯一保留下划线的标签） |
 | 大小写混乱 | `Long Hair` `MASTERPIECE` | 标签区全小写（自然语言句子与可见文字保留原样） |
 | 画师标签缺 `@` | `nnn yryr` | 加前缀：`@nnn yryr`（不加 @ 效果极弱） |
-| 权重过低 | `(chibi:1)` `(mid-air:1.1)` | 提到 Anima 需要的量级：`(chibi:2)`、`(mid-air:1.4)` |
+| 权重过低 | `(chibi:1)` `(mid-air:1.1)` | 提到 Anima 需要的量级：`(chibi:2)`、`(mid-air:2)`（常规 `:2` 起，强强调 `:3~5`） |
 | 权重语法错 | `{{chibi}}` `chibi::2` | 改 `(chibi:2)` |
 | 缺 safety 标签 | 只有 `1girl, solo, ...` | 按用户意图补 `safe` / `sensitive` / `nsfw` / `explicit` |
 | 备选表述 | `a girl or a boy` `maybe raining` | 删掉备选，只留最终画面 |

@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-regional
 description: Build Anima prompt blocks for Regional LLLite multi-region control and for inpaint / repair work. Use when the user wants different subjects in different colour masks, a local repaint, a hand/face fix, or any prompt that must describe a preserved whole-image context plus a masked-area result. Returns the required multi-block prompt plus a negative prompt.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 分区与局部重绘（Regional / Inpaint）

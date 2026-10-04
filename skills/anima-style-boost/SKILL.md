@@ -1,7 +1,7 @@
 ---
 name: anima-style-boost
 description: Intensify and polish the art direction of an existing Anima prompt, covering lineart quality, cel-shading depth, color design, lighting design, background density, key-visual polish and overall aesthetics. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when the style is already chosen but the render still looks flat, muddy or unfinished.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 风格增强（Style Boost）
@@ -107,7 +107,8 @@ Anima 是用**随机标签丢弃（tag dropout）**训练的：训练时部分�
 
 - 质量 / meta 类增强词（`highres`、`absurdres`）→ 第一区段，紧跟质量前缀；
 - 线稿、上色、配色、光照、背景、细节类 → general 区段（主体与服装之后），或自然语言区；
-- 权重需要比 SDXL 更高：`(soft shading:1.3)`、`(rim light:1.4)`；
+- 权重需要比 SDXL **大得多**：`(soft shading:2)`、`(rim light:2)`——照抄 SDXL 的 `1.3` / `1.4` 基本看不出效果；
+  全文加权标签 ≤4 个，优先给最需要压过其它因素的那一两个；
 - 不要把 `photorealistic` 之类的写实词当"细节增强"塞进来——Anima 不做写实。
 
 ### 7. 保住主体可读性

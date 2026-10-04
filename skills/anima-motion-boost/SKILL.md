@@ -1,7 +1,7 @@
 ---
 name: anima-motion-boost
 description: Strengthen pose, action, gesture and motion-energy wording for Anima prompts, including dynamic framing, motion blur taste, impact lines, before/after action beats. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when a generated image looks stiff, static or lifeless and the action inside it is unreadable.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 动作增强（Motion Boost）
@@ -11,7 +11,8 @@ Anima 是单帧文生图模型：**它画不出时间，只能画一个瞬间**�
 镜头站在哪里、以及画面里哪些东西"正在被运动带动"。
 
 模型对动作的理解主要来自 Danbooru 的 action 标签（`running` `jumping` `mid-air` `holding sword`）
-与英文自然语言的动词短语；两者混用最稳。权重需要比 SDXL 更高，例如 `(mid-air:1.4)`、`(dynamic pose:1.3)`。
+与英文自然语言的动词短语；两者混用最稳。权重需要比 SDXL **大得多**：常规 `(mid-air:2)`，
+强强调 `(dynamic pose:3)` ~ `(tag:5)`——照抄 SDXL 的 `1.3` / `1.4` 基本看不出效果。
 
 读 `references/anima-motion-vocabulary.md` 获取完整动作词表（按身体部位 / 动作族 / 镜头交互 / 效果分类）、
 组合配方与反模式清单。本文件只给工作流；标签顺序、质量前缀等硬规则以 `anima-prompt-format`
@@ -48,6 +49,20 @@ Anima 是单帧文生图模型：**它画不出时间，只能画一个瞬间**�
 
 本文件后文的 `## 示例` 仍按**两段格式**演示（含 `Negative prompt`），用来说明用户要负面词时该怎么写；
 默认交付按上面的正面单段格式输出即可。
+
+## 高杠杆规则（先看这 5 条；完整原文见 `anima-prompt-format/references/anima-prompt-baseline.md`）
+
+> 动作增强不是"多塞动词"——第 5 条是这一层最常被违反的规则。
+
+1. **画师标签必选**：正文里必须有 **1 个带 `@` 的主画师**，权重 `(@artist name:2)` 起，只 1~2 个
+   （用户没给就自己挑一个风格对路的，别留空）。
+2. **权重用大数**：Anima 需要比 SDXL 大得多——常规 `(tag:2)` 起，强强调 `(tag:3)` ~ `(tag:5)`；
+   用户给 `1.2` 这类小数要**放大到 2~5**。动作词是少数值得花权重额度的地方（`(mid-air:2)`）。
+3. **权重标签总数 ≤4**，优先给取景 / 角度（`(low angle:2)`）。
+4. **三层混合**：Hard Tags（Booru 标签，管结构）→ Soft Phrases（短视觉短语，管动作 / 氛围）→
+   NL Caption（1~3 句稠密英文）。**同一语义不跨层重复**。
+5. **因果链**：每个动作必须落到**可见后果**——头发飘动、衣物受力、扬尘、地面碎裂、水花。
+   只写动词而不写它改变了什么，模型给出的往往是一个僵硬的半身站姿。
 
 ## 工作流
 
@@ -146,7 +161,7 @@ fused fingers, twisted torso, deformed, broken proportions, static pose, stiff p
 
 ```text
 Positive prompt
-masterpiece, best quality, safe, 1girl, solo, long black hair, red eyes, black coat, holding sword, sword, mid-air, jumping, falling, dynamic pose, outstretched arm, arm behind back, one leg extended, looking down, angry, motion blur on background, speed lines, wind, floating hair, coat flapping, dust cloud, debris, impact, low angle, foreshortening, depth of field. A black-coated swordswoman drops from the sky above a shattered plaza with her blade already swinging down at the enemy below; her coat and long hair are torn upward by the fall while a ring of dust and stone debris bursts from the crater under the strike, one arm thrown back as counterweight and both legs extended, caught at the instant the swing reaches full extension.
+masterpiece, best quality, safe, 1girl, solo, (@artist name:2), (dynamic pose:3), long black hair, red eyes, black coat, holding sword, sword, mid-air, jumping, falling, outstretched arm, arm behind back, one leg extended, looking down, angry, motion blur on background, speed lines, wind, floating hair, coat flapping, dust cloud, debris, impact, low angle, foreshortening, depth of field. A black-coated swordswoman drops from the sky above a shattered plaza with her blade already swinging down at the enemy below; her coat and long hair are torn upward by the fall while a ring of dust and stone debris bursts from the crater under the strike, one arm thrown back as counterweight and both legs extended, caught at the instant the swing reaches full extension.
 
 Negative prompt
 worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad hands, extra fingers, missing fingers, extra limbs, extra arms, missing limbs, fused fingers, twisted torso, deformed, broken proportions, static pose, stiff pose, motion smear, multiple views, duplicate face, crossed eyes, messy lineart, watermark, signature, username, logo, unrelated text
@@ -156,6 +171,8 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 补了 `arm behind back` / `one leg extended` / `looking down` 三处体态锚点，用 `wind, floating hair,
 coat flapping, dust cloud, debris, speed lines` 承担速度感，只把 `motion blur` 留给背景，
 并加 `low angle` + `foreshortening` 与下劈动作配对。
+另按「高杠杆规则」补了两项：**主画师 `(@artist name:2)`**（占位符，交付时换成真实画师名）与
+**动作权重 `(dynamic pose:3)`**；全文加权标签共 2 个，没有超过 4 个的额度。
 
 ## 边界
 

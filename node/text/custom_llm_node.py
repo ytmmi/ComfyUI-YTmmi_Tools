@@ -42,12 +42,17 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 - 生成结束后由前端在本地按所选模式改写「种子」控件值（下一次执行即用新种子），
   因此节点无需状态缓存、无需回填 ui、也无需 IS_CHANGED。
 
-输出：模型返回的文本字符串。
+输出：
+- 输出文本：模型返回的文本字符串；
+- 简略上下文：本次运行轨迹的纯文本记录（步数、输入的 skills 名称、实际读取的
+  skills、每一步的思考与动作、最终输出）。该文本**完全由节点代码拼装，不调用模型
+  做任何总结**，便于事后核对「跑了几步、读了哪些 skills、最终产出了什么」。
 """
 
 import base64
 import io
 import re
+from dataclasses import dataclass, field
 
 import torch
 
@@ -143,6 +148,142 @@ EMPTY_OUTPUT_RETRIES = 2
 # 种子取值范围（与「种子」控件 min/max 一致）
 SEED_MIN = -1
 SEED_MAX = 0x7FFFFFFF
+
+# ── 「简略上下文」输出端口 ────────────────────────────────────────────────
+# 把本次运行的轨迹用代码拼装成纯文本：步数、输入的 skills 名称、实际读取了哪些
+# skills、每一步的思考与动作、最终输出。**不做任何模型总结**，因此内容与请求/响应
+# 一一对应，可直接用于事后核对。
+CONTEXT_TITLE = "# 简略上下文（本次运行，由节点代码拼装，未经模型总结）"
+
+# 「自动」清单中的 skills 行：`- <id>（<显示名>）: <描述>`
+_MANIFEST_SKILL_RE = re.compile(
+    r"^-\s+(?P<id>[a-z0-9][a-z0-9._-]*)(?:（[^）]*）)?\s*[:：]"
+)
+# 手动选择具体 skills 时指导文本的首行：`# 已选 skills：<id>`
+_SELECTED_SKILL_RE = re.compile(r"^#\s*已选 skills\s*[:：]\s*(?P<id>\S+)")
+
+
+def input_skill_names(skills_text, auto) -> tuple:
+    """从 skills 输入文本中提取 skills 名称（只要名称，不含描述与正文）。
+
+    - auto=True（「自动」清单）：逐行解析 `- <id>（<显示名>）: <描述>`；
+    - auto=False（手动选具体 skills）：解析首行 `# 已选 skills：<id>`。
+
+    只做确定性解析，识别不到时返回空元组（不臆造名称）；名称按出现顺序去重。
+    注意：手动选择时正文里也可能出现 `- xxx: ...` 形式的列表项，因此该分支
+    只认首行标题，不逐行扫描，避免把正文条目误当成 skills 名称。
+    """
+    text = str(skills_text or "")
+    names = []
+    if auto:
+        for line in text.splitlines():
+            match = _MANIFEST_SKILL_RE.match(line)
+            if match:
+                names.append(match.group("id"))
+    else:
+        match = _SELECTED_SKILL_RE.search(text)
+        if match:
+            names.append(match.group("id"))
+    return tuple(dict.fromkeys(names))
+
+
+def _labelled_block(label: str, text) -> list:
+    """渲染「- 标签：」+ 缩进多行内容；空内容渲染为「（无）」。"""
+    body = str(text or "").strip()
+    if not body:
+        return [f"- {label}：（无）"]
+    return [f"- {label}："] + [f"  {line}" for line in body.splitlines()]
+
+
+@dataclass
+class LLMReply:
+    """一次 chat/completions 请求的解析结果。"""
+
+    text: str  # 节点实际采用的文本（content 为空时已回退到思考内容）
+    reasoning: str  # 模型思考内容（reasoning_content / reasoning），可能为空
+    source: str  # "content" / "reasoning_content" / ""
+
+
+@dataclass
+class RunStep:
+    """一次接口请求（一步）的运行记录。"""
+
+    index: int
+    action: str = ""
+    reasoning: str = ""
+    reply: str = ""
+    source: str = "content"
+    is_final: bool = False
+
+
+@dataclass
+class RunTrace:
+    """本次运行的轨迹，「简略上下文」端口据此渲染纯文本。"""
+
+    model: str = ""
+    mode: str = ""
+    input_skills: tuple = ()
+    steps: list = field(default_factory=list)
+    reads: list = field(default_factory=list)  # (读取路径, skills id, 字符数)
+    injected_chars: int = 0
+    final_text: str = ""
+
+    def skill_usage(self) -> list:
+        """按 skills id 汇总读取次数：[(id, 次数), ...]（按首次出现顺序）。"""
+        counts = {}
+        for _path, skill_id, _chars in self.reads:
+            counts[skill_id] = counts.get(skill_id, 0) + 1
+        return list(counts.items())
+
+    def render(self) -> str:
+        """渲染为纯文本（确定性拼装，全程无模型参与）。"""
+        lines = [CONTEXT_TITLE, ""]
+        lines.append(f"- 模型：{self.model or '（未指定）'}")
+        lines.append(f"- 模式：{self.mode}")
+        lines.append(f"- 步数：{len(self.steps)} 步（每步 = 一次接口请求）")
+
+        if self.input_skills:
+            lines.append(
+                f"- 输入 skills（仅名称，共 {len(self.input_skills)} 个）："
+                + "、".join(self.input_skills)
+            )
+        else:
+            lines.append(
+                "- 输入 skills（仅名称）：无（未从输入文本中识别到 skills 名称）"
+            )
+
+        usage = self.skill_usage()
+        if usage:
+            summary = "、".join(f"{sid}（{n} 次）" for sid, n in usage)
+            lines.append(f"- 调用的 skills：{summary}")
+            lines.append(
+                f"- 读取明细（共 {len(self.reads)} 个文件，"
+                f"注入 {self.injected_chars:,} 字符）："
+            )
+            for path, _sid, chars in self.reads:
+                lines.append(f"  - {path}（{chars:,} 字符）")
+        else:
+            lines.append("- 调用的 skills：无（本次未按需读取任何 skills 文件）")
+
+        for step in self.steps:
+            lines.append("")
+            lines.append(f"## 第 {step.index} 步")
+            if step.action:
+                lines.append(f"- 动作：{step.action}")
+            lines.extend(_labelled_block("思考", step.reasoning))
+            if step.source == "reasoning_content":
+                lines.append(
+                    "- 说明：本轮接口未返回 content，节点按既有规则回退使用思考内容"
+                )
+            # 最终步的回复即「最终输出」，不在此处重复
+            if not step.is_final:
+                lines.extend(_labelled_block("回复", step.reply))
+
+        lines.append("")
+        lines.append("## 最终输出")
+        lines.append("")
+        lines.append(str(self.final_text) if str(self.final_text).strip() else "（空）")
+        return "\n".join(lines)
 
 
 class EmptyLLMOutputError(RuntimeError):
@@ -285,7 +426,7 @@ class CustomLLMNode:
     """自定义在线 LLM（OpenAI 兼容接口）。"""
 
     CATEGORY = "YTmmi/text"
-    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型）、温度/最大token/top_p/种子（含官方生成后控制）'
+    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型）、温度/最大token/top_p/种子（含官方生成后控制）；输出文本之外另输出「简略上下文」（本次运行的步数/输入skills名称/调用的skills/每步思考/最终输出，纯代码拼装不调用模型总结）'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -373,12 +514,12 @@ class CustomLLMNode:
             },
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("输出文本",)
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("输出文本", "简略上下文")
     FUNCTION = "chat"
     OUTPUT_NODE = False
-    OUTPUT_IS_LIST = (False,)
-    SEARCH_ALIASES = ["llm", "chat", "大模型", "ai对话", "openai", "skills", "技能", "种子", "生成后控制"]
+    OUTPUT_IS_LIST = (False, False)
+    SEARCH_ALIASES = ["llm", "chat", "大模型", "ai对话", "openai", "skills", "技能", "种子", "生成后控制", "简略上下文"]
 
     def chat(
         self,
@@ -472,10 +613,16 @@ class CustomLLMNode:
         else:
             messages.append({"role": "user", "content": str(prompt)})
 
+        # 输入的 skills 名称（仅名称），供「简略上下文」记录
+        is_auto_input = bool(
+            is_auto_skills_text is not None and is_auto_skills_text(skills)
+        )
+        input_skills = input_skill_names(skills, auto=is_auto_input)
+
         # skills 为「自动」清单时，进入多轮按需读取（渐进式披露）循环；
         # 否则单轮请求，行为与之前一致。
         # 「生成后控制」由前端在生成后改写「种子」控件值实现，节点后端不参与。
-        if is_auto_skills_text is not None and is_auto_skills_text(skills):
+        if is_auto_input:
             return self._chat_with_skills_disclosure(
                 url=url,
                 headers=headers,
@@ -493,9 +640,10 @@ class CustomLLMNode:
                 total_max_chars=int(
                     kwargs.get("skills累计上限", SKILLS_TOTAL_CHARS_DEFAULT)
                 ),
+                input_skills=input_skills,
             )
 
-        content = self._post_chat(
+        reply = self._post_chat(
             url=url,
             headers=headers,
             messages=messages,
@@ -506,7 +654,24 @@ class CustomLLMNode:
             seed=seed,
             images=images,
         )
-        return (content,)
+        # 「简略上下文」：单轮请求同样记录一步（思考 + 最终输出）
+        trace = RunTrace(
+            model=str(model),
+            mode="单轮请求（未按需读取 skills）",
+            input_skills=input_skills,
+            steps=[
+                RunStep(
+                    index=1,
+                    action="直接作答",
+                    reasoning=reply.reasoning,
+                    reply=reply.text,
+                    source=reply.source,
+                    is_final=True,
+                )
+            ],
+            final_text=reply.text,
+        )
+        return (reply.text, trace.render())
 
     # ── 单轮请求与响应解析 ────────────────────────────────────────────────
 
@@ -522,8 +687,8 @@ class CustomLLMNode:
         seed,
         images,
         retries=EMPTY_OUTPUT_RETRIES,
-    ) -> str:
-        """发送一次 chat/completions 请求并返回助手文本。
+    ) -> "LLMReply":
+        """发送一次 chat/completions 请求并返回助手文本（含思考内容）。
 
         当接口返回 200 但内容为空、且 finish_reason 属于正常结束时，自动重试
         （最多 retries 次），避免偶发空响应直接变成空输出。
@@ -559,8 +724,8 @@ class CustomLLMNode:
         top_p,
         seed,
         images,
-    ) -> str:
-        """发送单次 chat/completions 请求并解析响应。"""
+    ) -> "LLMReply":
+        """发送单次 chat/completions 请求并解析响应（同时保留思考内容）。"""
         payload = {
             "model": str(model),
             "messages": messages,
@@ -611,6 +776,7 @@ class CustomLLMNode:
         usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
 
         text, source = self._extract_message_text(message)
+        reasoning = self._extract_reasoning_text(message)
 
         if not text.strip():
             # 空输出不再静默返回空串（下游「展示文本（多重）」会看起来像没执行），
@@ -637,7 +803,22 @@ class CustomLLMNode:
                 "请调大「最大token数」后重试。"
             )
 
-        return text
+        return LLMReply(text=text, reasoning=reasoning, source=source)
+
+    @staticmethod
+    def _parts_text(parts) -> str:
+        """拼接 parts 数组中的文本（如 [{"type":"text","text":...}]）。"""
+        chunks = []
+        for part in parts:
+            if isinstance(part, str):
+                chunks.append(part)
+            elif isinstance(part, dict):
+                text = part.get("text")
+                if isinstance(text, str):
+                    chunks.append(text)
+                elif isinstance(part.get("content"), str):
+                    chunks.append(part["content"])
+        return "".join(chunks)
 
     @staticmethod
     def _extract_message_text(message) -> tuple:
@@ -652,38 +833,39 @@ class CustomLLMNode:
         if not isinstance(message, dict):
             return "", ""
 
-        def from_parts(parts) -> str:
-            chunks = []
-            for part in parts:
-                if isinstance(part, str):
-                    chunks.append(part)
-                elif isinstance(part, dict):
-                    text = part.get("text")
-                    if isinstance(text, str):
-                        chunks.append(text)
-                    elif isinstance(part.get("content"), str):
-                        chunks.append(part["content"])
-            return "".join(chunks)
-
         content = message.get("content")
         if isinstance(content, str) and content.strip():
             return content, "content"
         if isinstance(content, list):
-            joined = from_parts(content)
+            joined = CustomLLMNode._parts_text(content)
             if joined.strip():
                 return joined, "content"
 
         # reasoning_content 为 DeepSeek 等推理模型的思考字段，reasoning 为部分网关的别名
+        reasoning = CustomLLMNode._extract_reasoning_text(message)
+        if reasoning.strip():
+            return reasoning, "reasoning_content"
+
+        return "", ""
+
+    @staticmethod
+    def _extract_reasoning_text(message) -> str:
+        """提取模型的思考内容（reasoning_content / reasoning），无则返回空串。
+
+        与 _extract_message_text 分开：即使 content 非空（正常作答），思考内容也要
+        被独立保留，供「简略上下文」端口展示。
+        """
+        if not isinstance(message, dict):
+            return ""
         for key in ("reasoning_content", "reasoning"):
             reasoning = message.get(key)
             if isinstance(reasoning, str) and reasoning.strip():
-                return reasoning, "reasoning_content"
+                return reasoning
             if isinstance(reasoning, list):
-                joined = from_parts(reasoning)
+                joined = CustomLLMNode._parts_text(reasoning)
                 if joined.strip():
-                    return joined, "reasoning_content"
-
-        return "", ""
+                    return joined
+        return ""
 
     @staticmethod
     def _empty_output_message(
@@ -790,11 +972,14 @@ class CustomLLMNode:
         max_rounds,
         read_max_chars,
         total_max_chars,
+        input_skills=(),
     ) -> tuple:
         """多轮按需读取 skills，直到模型给出最终答案或达到轮数上限。
 
         文本协议：模型单独输出一行 `READ: <skills名称>[/相对路径]` 即请求读取，
         节点读取文件后以 user 消息回注，继续下一轮。
+
+        返回 (最终文本, 简略上下文)；简略上下文里每一步都与一次接口请求一一对应。
         """
         if read_skill_file is None or skill_names is None:
             raise RuntimeError(
@@ -807,9 +992,11 @@ class CustomLLMNode:
         # 多轮对话内部使用副本，避免影响调用方传入的 messages
         convo = list(messages)
         injected = 0
-        read_log = []
+        steps = []
+        reads = []
+        final_text = ""
 
-        for round_index in range(max_rounds):
+        for _round_index in range(max_rounds):
             reply = self._post_chat(
                 url=url,
                 headers=headers,
@@ -821,11 +1008,23 @@ class CustomLLMNode:
                 seed=seed,
                 images=images,
             )
-            target, remainder = self.parse_read_directive(reply)
+            step_index = len(steps) + 1
+            target, _remainder = self.parse_read_directive(reply.text)
 
             # 无读取指令 → 本轮即最终答案
             if not target:
-                return (reply,)
+                steps.append(
+                    RunStep(
+                        index=step_index,
+                        action="直接作答（本轮未请求读取）",
+                        reasoning=reply.reasoning,
+                        reply=reply.text,
+                        source=reply.source,
+                        is_final=True,
+                    )
+                )
+                final_text = reply.text
+                break
 
             # 解析目标并读取文件
             try:
@@ -834,8 +1033,17 @@ class CustomLLMNode:
                     skill_id, relative_path, max_chars=read_max_chars
                 )
             except Exception as exc:
+                steps.append(
+                    RunStep(
+                        index=step_index,
+                        action=f"读取失败（{exc}）→ 已把错误回注给模型重试",
+                        reasoning=reply.reasoning,
+                        reply=reply.text,
+                        source=reply.source,
+                    )
+                )
                 # 读取失败：把错误回注给模型，让它改用正确的名称重试
-                convo.append({"role": "assistant", "content": reply})
+                convo.append({"role": "assistant", "content": reply.text})
                 convo.append(
                     {
                         "role": "user",
@@ -846,7 +1054,19 @@ class CustomLLMNode:
 
             # 累计上限保护：超出后不再注入，直接要求模型基于已有内容作答
             if injected + len(file_text) > total_max_chars:
-                convo.append({"role": "assistant", "content": reply})
+                steps.append(
+                    RunStep(
+                        index=step_index,
+                        action=(
+                            f"已达累计上限（{total_max_chars:,} 字符），"
+                            f"未注入 {skill_id}/{relative_path}"
+                        ),
+                        reasoning=reply.reasoning,
+                        reply=reply.text,
+                        source=reply.source,
+                    )
+                )
+                convo.append({"role": "assistant", "content": reply.text})
                 convo.append(
                     {
                         "role": "user",
@@ -859,9 +1079,21 @@ class CustomLLMNode:
                 continue
 
             injected += len(file_text)
-            read_log.append(f"{skill_id}/{relative_path}")
+            reads.append((f"{skill_id}/{relative_path}", skill_id, len(file_text)))
+            steps.append(
+                RunStep(
+                    index=step_index,
+                    action=(
+                        f"读取 {skill_id}/{relative_path}"
+                        f"（{len(file_text):,} 字符）并回注对话"
+                    ),
+                    reasoning=reply.reasoning,
+                    reply=reply.text,
+                    source=reply.source,
+                )
+            )
 
-            convo.append({"role": "assistant", "content": reply})
+            convo.append({"role": "assistant", "content": reply.text})
             convo.append(
                 {
                     "role": "user",
@@ -872,19 +1104,18 @@ class CustomLLMNode:
                     ),
                 }
             )
-
-        # 达到轮数上限仍未给出最终答案：再请求一次并要求直接作答
-        convo.append(
-            {
-                "role": "user",
-                "content": (
-                    f"已达到最大读取轮数（{max_rounds}）。"
-                    "请立即基于已获得的内容直接给出最终答案，不要再请求读取。"
-                ),
-            }
-        )
-        return (
-            self._post_chat(
+        else:
+            # 达到轮数上限仍未给出最终答案：再请求一次并要求直接作答
+            convo.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"已达到最大读取轮数（{max_rounds}）。"
+                        "请立即基于已获得的内容直接给出最终答案，不要再请求读取。"
+                    ),
+                }
+            )
+            reply = self._post_chat(
                 url=url,
                 headers=headers,
                 messages=convo,
@@ -894,8 +1125,29 @@ class CustomLLMNode:
                 top_p=top_p,
                 seed=seed,
                 images=images,
-            ),
+            )
+            steps.append(
+                RunStep(
+                    index=len(steps) + 1,
+                    action=f"达到最大读取轮数（{max_rounds}）后的强制收尾",
+                    reasoning=reply.reasoning,
+                    reply=reply.text,
+                    source=reply.source,
+                    is_final=True,
+                )
+            )
+            final_text = reply.text
+
+        trace = RunTrace(
+            model=str(model),
+            mode=f"skills 按需读取（渐进式披露，最多 {max_rounds} 轮）",
+            input_skills=tuple(input_skills),
+            steps=steps,
+            reads=reads,
+            injected_chars=injected,
+            final_text=final_text,
         )
+        return final_text, trace.render()
 
     @staticmethod
     def _merge_system_text(skills, system_prompt) -> str:
@@ -945,6 +1197,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 __all__ = [
     "CustomLLMNode",
+    "LLMReply",
+    "RunStep",
+    "RunTrace",
+    "CONTEXT_TITLE",
+    "input_skill_names",
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",
 ]

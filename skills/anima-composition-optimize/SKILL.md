@@ -1,7 +1,7 @@
 ---
 name: anima-composition-optimize
 description: Fix and design framing in Anima prompts with shot size, camera angle, view direction, subject placement, visual hierarchy, depth layering and negative space. Use when an Anima render puts the subject too small, centers everything, lets characters overlap without hierarchy or lets the background steal focus, and when a portrait, poster/key-visual, group shot or scenery-led image needs its framing rebuilt from prompt text alone.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 构图优化（Composition Optimization）
@@ -48,6 +48,20 @@ version: 1.0.0
 本文件后文的 `## 示例` 仍按**两段格式**演示（含 `Negative prompt`），用来说明用户要负面词时该怎么写；
 默认交付按上面的正面单段格式输出即可。
 
+## 高杠杆规则（先看这 5 条；完整原文见 `anima-prompt-format/references/anima-prompt-baseline.md`）
+
+> 构图这一层最容易被"自然语言漂移"吃掉，第 3 条是本 skill 存在的核心理由。
+
+1. **画师标签必选**：正文里必须有 **1 个带 `@` 的主画师**，权重 `(@artist name:2)` 起，只 1~2 个
+   （用户没给就自己挑一个风格对路的，别留空）。画师与构图是同一条提示词里收益最高的两项。
+2. **权重用大数**：Anima 需要比 SDXL 大得多——常规 `(tag:2)` 起，强强调 `(tag:3)` ~ `(tag:5)`；
+   用户给 `1.2` 这类小数要**放大到 2~5**。
+3. **权重标签总数 ≤4**，优先给取景 / 角度（见下面「取景对抗自然语言漂移」一节）。
+4. **三层混合**：Hard Tags（Booru 标签，管结构）→ Soft Phrases（短视觉短语，管动作 / 氛围）→
+   NL Caption（1~3 句稠密英文，管空间与光影）。**同一语义不跨层重复**。
+5. **因果链**：动作与天气必须落到**可见后果**（头发飘动、衣物受力、湿衣、积水、扬尘），
+   不要只丢一个孤立标签。
+
 ## 工作流
 
 ### 1. 先问"这张图拿来干什么"
@@ -69,14 +83,18 @@ version: 1.0.0
 - 想要"看得清表情"：`portrait` 或 `close-up` †；
 - 想要"看得清服装"：`cowboy shot`（大腿以上）性价比最高；
 - 想要"人在环境里"：`full body`，背景标签量必须同步减少；
-- `wide shot` 只在**场景是主体**时用，否则主体必然太小。
+- `wide shot` 只在**场景是主体**时用，否则主体必然太小；
+- 景别选定后**必须给取景标签加权**（`(cowboy shot:2)`）——理由见下面的「取景对抗自然语言漂移」一节，
+  这是"构图词写了却没生效"的头号原因。
 
 ### 3. 选机位与朝向
 
 - 机位：`from below`（仰视，显强/压迫）、`from above`（俯视，显弱/可爱/渺小）、`dutch angle`（倾斜，紧张）、
   `eye level` †（平视，最中性）、`from side`、`from behind`；
 - 朝向与视线分开写：身体可以 `from side`，视线仍 `looking at viewer`；
-- 仰视会同时放大下半身、缩小头，用于立绘要谨慎；表格类构图禁止切机位。
+- 仰视会同时放大下半身、缩小头，用于立绘要谨慎；表格类构图禁止切机位；
+- 角度标签同样受自然语言漂移影响，按需加权（`(low angle:2)`、`(dutch angle:3)`），
+  并在自然语言首句补一句视角。
 
 ### 4. 定主体位置与视觉层级
 
@@ -112,11 +130,36 @@ version: 1.0.0
 ### 9. 自检（静默）
 
 - 主体在画幅里占比与用途匹配吗？
+- **取景 / 角度标签加权了没有**（`(cowboy shot:2)`）？自然语言**首句**有没有把取景写死？
+- 全文加权标签是否 **≤4 个**，且优先给了取景 / 角度？
 - 视觉层级是否靠至少两个杠杆建立？
 - 前景 / 中景 / 背景是否至少写了两段？
 - 构图词是否都落在 `general` 段？
 - 有没有把宽高比 / 分辨率 / 参数漏进正文？
 - 背景标签量是否超过全文的三分之一（超过就会抢焦）？
+
+## 取景对抗自然语言漂移（关键规则）
+
+一旦自然语言层开始描述环境，模型会**把镜头拉远**，直接忽略 `close-up` / `upper body` / `portrait`
+这些取景标签——看起来就像"构图词白写了"。这不是玄学：**自然语言对画面的影响力远强于标签**，
+所以环境描述会把镜头往外拽。
+
+三步对抗，按顺序用：
+
+1. **给取景标签加权**：`(upper body:2)`、`(cowboy shot:2)`、`(close-up:3)`；
+2. **自然语言首句把取景写死**：`The composition is a tight close-up portrait…`；
+3. **仍然拉远就继续加**：`(upper body:5)` 甚至 `(upper body:7)`；角度标签同理
+   （`(low angle:2)`、`(dutch angle:3)`）。
+
+配套约束：
+
+- 一段提示词里**加权标签总数 ≤4 个**——取景 / 角度优先，画师通常已经占掉 1 个；
+- 背景标签量砍到主角的三分之一以下，否则镜头也会被背景"撑开"；
+- **同一语义不跨层重复**：标签区写了 `close-up`，自然语言首句就改用叙事式取景描述，
+  不要再原样重复那个标签。
+
+> 反向自查：出图后如果主体比预期小、或景别与提示词不符，**先怀疑这一条**，
+> 而不是去调采样参数（参数改不了取景漂移）。
 
 ## 宽高比不写在提示词里
 
@@ -155,7 +198,7 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 
 ```text
 Positive prompt
-masterpiece, best quality, safe, 1girl, solo, silver hair, long hair, black coat, ruined city, cowboy shot, from below, off-center, left side, foreground rubble, blurry background, depth of field, backlighting. A lone silver-haired girl in a black coat stands off-center on the left of the frame, seen from slightly below; the collapsed towers behind her fall out of focus, a blurred slab of rubble crosses the near foreground, and a wide empty band of pale haze is left in the upper right for a cover title.
+masterpiece, best quality, safe, 1girl, solo, (@artist name:2), (cowboy shot:2), from below, off-center, left side, silver hair, long hair, black coat, ruined city, foreground rubble, blurry background, depth of field, backlighting. The composition is a tight off-center cowboy shot seen from slightly below: a lone silver-haired girl in a black coat stands on the left of the frame, the collapsed towers behind her falling out of focus while a blurred slab of rubble crosses the near foreground, and a wide empty band of pale haze is left in the upper right for a cover title.
 
 Negative prompt
 worst quality, low quality, lowres, blurry subject, jpeg artifacts, bad anatomy, bad hands, extra limbs, deformed, bad crop, messy lineart, watermark, signature, username, logo, cluttered background
@@ -164,6 +207,9 @@ worst quality, low quality, lowres, blurry subject, jpeg artifacts, bad anatomy,
 改动点：`full body, wide shot, centered` → `cowboy shot, from below, off-center, left side`；
 再加 `foreground rubble`（前景分层）、`blurry background, depth of field`（压低背景）、
 `backlighting`（主体与背景分离）。角色与风格标签一个都没动。
+另外三处按「高杠杆规则」补齐：**给取景加权 `(cowboy shot:2)`**（对抗自然语言把镜头拉远）、
+**自然语言首句写死取景**（`The composition is a tight off-center cowboy shot…`）、
+**补上主画师 `(@artist name:2)`**（占位符，交付时换成真实画师名）。
 注意负向里 `blurry` 换成了 `blurry subject`——这次要的就是虚化背景，直接写 `blurry` 会自相矛盾。
 
 ## 边界

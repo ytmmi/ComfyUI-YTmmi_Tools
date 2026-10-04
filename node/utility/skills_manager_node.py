@@ -630,6 +630,10 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         return (
             "当前模式：Anima（二次元插画）——本清单仅列出 Anima 家族的 skills，"
             "请只在本家族内选择；不要路由到 H3 视频或 Qwen-Image 家族的写法。"
+            "动手前请**先读取共同基准** `anima-prompt-format/references/anima-prompt-baseline.md`"
+            "（其中的「高杠杆规则」是全家族通用硬规则：主画师必选、权重用大数且加权标签总数 ≤4、"
+            "取景对抗自然语言漂移、Hybrid 三层混合、动作与天气要有可见后果），"
+            "再按需读取具体 skills 的 SKILL.md。"
         )
     if is_qwen_image_mode(normalized):
         return (

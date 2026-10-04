@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-character
 description: Keep one Anima character identical across a set of prompts and build multi-view, multi-expression or outfit-variant character sheets. Use when hair, eyes, outfit, silhouette and a signature accessory must stay stable across Anima renders, when a front/side/back turnaround or expression sheet is requested, or when several characters share one frame and must not merge or swap attributes.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 角色一致性与三视图（Character Consistency & Character Sheet）
@@ -45,6 +45,18 @@ Anima 是 CircleStone Labs × Comfy Org 的 2B 二次元插画模型，**没有�
   采样器 / 种子建议——即使被问也只用一句话说明「这些由工作流设置决定」，不要写进正文。
 
 - 负面词**仅在用户明确要求时**才追加（示例与角色表模板仍按两段演示）。
+
+## 高杠杆规则（先看这 5 条；完整原文见 `anima-prompt-format/references/anima-prompt-baseline.md`）
+
+> 多人同框时第 5 条最关键：Anima 在多人场景里**极易发生特征混淆**。
+
+1. **画师标签必选**：正文里必须有 **1 个带 `@` 的主画师**，权重 `(@artist name:2)` 起，只 1~2 个
+   （用户没给就自己挑一个风格对路的，别留空）；
+2. **权重用大数**：常规 `(tag:2)` 起，强强调 `(tag:3)` ~ `(tag:5)`；用户给 `1.2` 这类小数要放大到 2~5；
+3. **权重标签总数 ≤4**，多人场景优先给**易混淆特征**（`(blue hair:2), (red hair:2)`）；
+4. **三层混合**：Hard Tags → Soft Phrases → NL Caption，**同一语义不跨层重复**；
+5. **多人按角色分组**：详见下面第 4 步——属性**按角色分组连续写完再切换**，
+   **严禁交叉排列**（`blue hair, red hair, short hair, long hair` 必然混）。
 
 ## 工作流
 
@@ -107,6 +119,19 @@ Anima 是 CircleStone Labs × Comfy Org 的 2B 二次元插画模型，**没有�
 - 用户只给名字、没给外观：**不要猜**。猜错发色瞳色等于换了个人；请用户补发色、瞳色、主服装、签名配件四项，
   或确认可以直接引用用户提供的参考描述。
 
+**四条防混淆规则（Anima 在多人场景里极易串味，逐条照做）：**
+
+1. **属性按角色分组排列，严禁交叉。** 同一个角色的发型、瞳色、服装、体型、配件**连续写完再切换**
+   下一个角色。反例（必然串色）：`blue hair, red hair, short hair, long hair`；
+   正例：`blue hair, long hair, blue eyes, white dress,` 然后才是 `red hair, short hair, red eyes, black armor,`。
+   体型词（`petite` / `tall`）也属于角色分组，不要单独漂在两组之间。
+2. **互动词紧跟在人数标签后面。** 有互动时先写 `2girls, duo, holding each other's hands,`，
+   再分别描述两个角色——不要等描述完两个人的外观才补一句互动。
+3. **用空间方位词分离角色**：`left` / `right` / `foreground` / `background` 成对出现，
+   自然语言层为每个角色写一句"外观锚定短语"（`the girl with blue hair on the left…`）。
+4. **易混淆特征要加权**：两个角色发色相近时写 `(blue hair:2), (red hair:2)`；
+   权重额度全文 ≤4 个，多人场景就优先给这类最容易被换掉的特征。
+
 ### 5. 组装视图组 / 表格
 
 每条提示词 = `[前缀标签] [角色+作品+画师] [身份锚点] [本视图可变块] . [自然语言]`。
@@ -132,8 +157,9 @@ Anima 是 CircleStone Labs × Comfy Org 的 2B 二次元插画模型，**没有�
 - 每条提示词的锚点是否**逐字一致**（含大小写与先后顺序）？
 - 是否每张只有"应该变的那一轴"在变？
 - 多角色是否同时具备：人数标签、每人外观、每人位置？`solo` 是否已删？
+- 多角色的属性是否**按角色分组**、没有交叉排列？互动词是否紧跟在人数标签后？易混淆特征加权了吗？
 - 是否把种子 / 宽高比 / CFG / 模型文件名漏进了提示词正文？
-- 用户没给的画师名、LoRA 名，是否一个都没编？
+- **用户没给画师时，是否自己挑了 1 个风格对路的主画师**（不能留空）？LoRA 名有没有编（绝不能编）？
 - 是否仍是动漫插画取向（Anima 不做写实）？
 
 ## 示例
@@ -161,16 +187,24 @@ masterpiece, best quality, safe, 1girl, silver hair, very long hair, blunt bangs
 ```
 
 > 真实交付时负面提示词要**整段抄写**，不要写"同 View 1"；示例为压缩篇幅才省略。
+> 同理，每条视图都必须在 artist 位带**同一个主画师标签**（`(@artist name:2)`，占位符）——
+> 跨图风格一致也靠它；示例为压缩篇幅未逐条写出。
 
 输入：`主角团同框：银发女仆 + 红发男剑士`
 
 ```text
 Positive prompt
-masterpiece, best quality, safe, 1girl, 1boy, silver hair, very long hair, purple eyes, black maid dress, white apron, red ribbon, red hair, short hair, green eyes, brown leather armor, sword on back, petite, slender, tall, upper body, simple background. Two characters stand side by side against a plain background: the slender silver-haired maid in a black dress on the left, one hand holding her apron; the taller red-haired swordsman in brown leather armor on the right with a sword on his back, each keeping their own hair color, eye color and outfit without mixing.
+masterpiece, best quality, safe, 1girl, 1boy, duo, (@artist name:2), (upper body:2), silver hair, very long hair, purple eyes, black maid dress, white apron, red ribbon, petite, slender, red hair, short hair, green eyes, brown leather armor, sword on back, tall, simple background. Two characters stand side by side against a plain background: the slender silver-haired maid in a black dress on the left, one hand holding her apron; the taller red-haired swordsman in brown leather armor on the right with a sword on his back, each keeping their own hair color, eye color and outfit without mixing.
 
 Negative prompt
 worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad hands, extra fingers, missing fingers, extra limbs, deformed, duplicate face, crossed eyes, watermark, signature, username, logo, merged characters, duplicated character, wrong attribute, fused bodies, color bleeding
 ```
+
+注意这条提示词里的**防混淆写法**：人数后紧跟 `duo`，两个角色的属性**各自成组**
+（女仆：`silver hair, very long hair, purple eyes, black maid dress, white apron, red ribbon, petite, slender`；
+剑士：`red hair, short hair, green eyes, brown leather armor, sword on back, tall`），
+完全没有交叉排列——这是多人不串味的头号保证。另外补上了主画师 `(@artist name:2)`（占位符）
+与 `(upper body:2)` 取景权重，全文加权 2 个。
 
 ## 附：种子与 LoRA（只在用户询问时说明）
 

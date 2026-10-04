@@ -136,7 +136,8 @@ over-sharpened, noisy, cluttered, busy background, washed out, muddy colors
 
 - 保留 `masterpiece, best quality, score_7, safe`；
 - 平图的根因通常是**没有线稿描述 + 没有阴影层次 + 没有光向 + 背景空**，按 2.1→2.5 顺序补；
-- 补完仍平 → 检查是不是 `(xxx:1)` 这类过低权重（Anima 需要比 SDXL 更高的权重值）。
+- 补完仍平 → 检查是不是 `(xxx:1)` 这类过低权重（Anima 的常规档是 `:2` 起，照抄 SDXL 的
+  `1.3` / `1.4` 基本看不出效果）。
 
 ## 5. 快速对照：症状 → 最小处方
 

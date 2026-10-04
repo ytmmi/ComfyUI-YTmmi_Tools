@@ -25,7 +25,7 @@ silver hair, very long hair, blunt bangs, sidelocks, purple eyes, black sailor d
 | 逐字复制，不改大小写、不改顺序、不改同义词 | 换一个词面，模型就当成了不同描述 |
 | 锚点里不出现镜头、姿势、表情、背景、光照 | 这些是可变轴，混进锚点会让每张图都动 |
 | 标签总数锁在 8~16 | 太长会被随机标签丢弃切成不同子集，反而不一致 |
-| 签名配件放在锚点最末，必要时加权（`(eyepatch:1.6)`） | 最容易被丢掉的往往是最后那几个 |
+| 签名配件放在锚点最末，必要时加权（`(eyepatch:2)`） | 最容易被丢掉的往往是最后那几个 |
 | 岁感、气质用自然语言从句补 | `the same slender teenage girl` 比硬塞年龄标签安全 |
 
 ## 2. 轴 A：视角 / 视图
@@ -125,7 +125,7 @@ silver hair, very long hair, blunt bangs, sidelocks, purple eyes, black sailor d
 | 现象 | 成因 | 提示词级修法 |
 |---|---|---|
 | 两张图不是同一个人 | 锚点被改写、缩写或换了同义词 | 锚点整段复制，标签数固定 8~16；不同图的锚点做逐字 diff |
-| 同锚点仍每张略不同 | 锚点太长，被随机标签丢弃切成不同子集 | 缩短锚点；给签名配件加权 `(eyepatch:1.6)` |
+| 同锚点仍每张略不同 | 锚点太长，被随机标签丢弃切成不同子集 | 缩短锚点；给签名配件加权 `(eyepatch:2)` |
 | 两个角色换头 / 换发色 | 外观离名字太远、缺位置词 | 名字后紧跟外观从句；补 `on the left/right`；负向 `wrong attribute` |
 | 两个角色融合成一团 | 缺人数标签或写了 `solo`；剪影太像 | 补 `2girls`；删 `solo`；让发型/服装/身高至少差两项；负向 `merged characters, fused bodies` |
 | 表格被压成一格 | 版式词不足；负向里含 `multiple views` / `duplicated` | 自然语言写清"三个并列格子"；检查负向并删掉冲突词 |

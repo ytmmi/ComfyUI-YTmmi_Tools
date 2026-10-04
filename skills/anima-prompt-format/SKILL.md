@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-format
 description: Format any idea, brief, character concept, image description or mixed Chinese/English request into Anima-ready prompt blocks (Danbooru tags plus natural-language caption, with the official tag order and quality prefix). Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI, when the user mentions Anima, 二次元, 动漫插画, Danbooru tags or needs one consistent positive/negative prompt pair.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 提示词格式化（Prompt Format）
@@ -43,6 +43,22 @@ version: 1.0.0
 本文件后文的 `## 示例` 仍按**两段格式**演示（含 `Negative prompt`），用来说明用户要负面词时该怎么写；
 默认交付按上面的正面单段格式输出即可。
 
+## 高杠杆规则（先看这 5 条；完整原文见 `references/anima-prompt-baseline.md`）
+
+> 这几条决定"同一段需求、出图质感差一档"。**比堆砌质量词重要得多**，动手前先过一遍。
+
+1. **画师标签必选**：正文里必须有 **1 个带 `@` 的主画师**（画师是画面质感的第一杠杆，没有它会落在平庸的默认风格里）。
+   用户没给画师时，**由你按媒介 / 年代 / 题材自己挑一个最匹配的知名画师**——不要留空、也不要退回纯风格词。
+   权重 `(@artist name:2)` 起；**只 1 个最稳，最多 1~2 个**（Anima 用 Qwen3 编码器，多画师会互相污染嵌入）。
+2. **权重用大数**：Anima 需要比 SDXL 大得多——常规 `(tag:2)` 起，强强调 `(tag:3)` ~ `(tag:5)`；
+   用户给 `1.2` 这类小数要**放大到 2~5**。照抄 SDXL 数值会得到"权重没用"的错误结论。
+3. **权重标签总数 ≤4**，优先给取景 / 角度：自然语言一旦描述环境，模型就会**把镜头拉远**、吃掉
+   `upper body` / `close-up`——必须用 `(upper body:2)`、`(close-up:3)` 对抗，并在自然语言**首句**明确取景。
+4. **三层混合**：Hard Tags（Booru 标签，管结构）→ Soft Phrases（短视觉短语，管动作 / 氛围）→
+   NL Caption（1~3 句稠密英文，管空间与光影）。纯标签扁平、纯自然语言超 2~3 段就崩，**同一语义不跨层重复**。
+5. **因果链**：动作与天气必须落到**可见后果**（头发飘动、衣物受力、湿衣、积水、扬尘），
+   不要只丢一个孤立标签——环境事件要影响角色或画面层次。
+
 ## 参数与提示词必须分离
 
 - **提示词给文本编码器，参数给采样器，两者不能混**：分辨率、宽高比、种子、CFG、步数、
@@ -75,6 +91,11 @@ version: 1.0.0
 | 明确是 Aesthetic / Turbo | `masterpiece, best quality, safe`（**不加 score_\***） |
 | 明确挂了 PonyV7 系美学 LoRA | `masterpiece, very aesthetic, best quality, score_9, score_8, highres, absurdres, newest, year 2025` |
 
+**只有用户明确说自己挂了 PonyV7 系美学 LoRA，才用最后一行的整套前缀。**
+用户只是提到 `score_9` / `score_8`（例如"要 score_9 那种质量"）时，**只写他点名的 score 标签**，
+不要顺手补上 `very aesthetic` / `absurdres` / `newest` / `year 2025`——那一整套是配合 LoRA 栈用的，
+裸模型上会过冲；Aesthetic / Turbo 上更明确不该出现 `score_*`。
+
 用户没提版本时**不要输出参数段**，只在提示词里用安全前缀；不要因为"看到 score_7 效果好"
 就给 Aesthetic / Turbo 加 score 标签。
 
@@ -90,7 +111,11 @@ version: 1.0.0
 - 唯一例外：`score_9` / `score_7` 这类 score 标签**保留下划线**；
 - 人数标签要写够：`1girl` `solo`、`2girls`、`1boy, 1girl`、`multiple girls`；
 - 画师标签**必须 `@` 开头**（`@nnn yryr`）——不加 @ 效果极弱，这是官方硬规则；
-- 用户没给画师时**不要自己编造画师名**（编错了会毁风格），改由 `anima-prompt-artist` 处理；
+- **画师标签必选**：这里必须落下 **1 个**主画师，权重 `(@artist name:2)` 起（最多 1~2 个）。
+  用户给了画师名 → 照抄并加 `@`；**用户没给 → 你按媒介 / 年代 / 题材自己挑一个最匹配的知名画师**，
+  不要留空、也不要退回纯风格词；挑不好或拿不准拼写时再看 `anima-prompt-artist`；
+- 取景 / 角度标签按第 4 步的**对抗漂移**规则加权（`(upper body:2)`）；
+  **全文带权重的标签不超过 4 个**，优先分给取景与角度；
 - Danbooru 与 Gelbooru 写法冲突时**用 Gelbooru 版本**；
 - 不要堆砌同义质量词；Anima 用随机标签丢弃训练，**不需要标签堆满**。
 
@@ -98,9 +123,17 @@ version: 1.0.0
 
 标签区之后接 `.` 再写 **1~3 句英文描述**，把标签没能表达的内容说清：
 
+- **首句先交代取景**（`The composition is a tight close-up portrait…`）：自然语言一旦开始描述环境，
+  模型就会**把镜头拉远**并忽略 `upper body` / `close-up` / `portrait` 这类取景标签。
+  对抗办法是两步一起做——标签区给取景加权 `(upper body:2)`、`(close-up:3)`，**首句再把取景写死**；
+  如果仍然拉远，就把权重加到 `(upper body:5)` 甚至 `(upper body:7)`；
 - 先给画面定调一句（媒介 + 主体 + 环境 + 色调整体感）；
 - 角色细节写在一起（发色发型、眼睛、表情、视线、服装、道具、姿态）；
 - 背景细节写在一起，用空间词定位（`foreground` `left side` `center` `background`）；
+- 光影与氛围写在**自然语言层**（`rim light`、`volumetric god rays`、`dreamy pastel atmosphere`、
+  `soft glowing light`）——这是收益仅次于画师标签的一层，不要只靠标签区；
+- 动作与天气要落到**可见后果**（头发飘动、衣物受力、湿衣、积水、扬尘），不要只写一个孤立名词；
+- **同一语义不跨层重复**：标签区已经写了 `close-up`，这里就不要再写一遍 `close-up`，改用叙事强化；
 - 写"最终画面"而不是"生成过程"；不出现 `or` / `maybe` / `could be`；
 - 纯自然语言时**至少 2 句**，过短会出意外内容。
 
@@ -122,13 +155,18 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 
 ### 6. 交付前自检（静默）
 
+- **有没有落下主画师**（带 `@`、权重 `:2` 起、只 1~2 个）？这是最容易漏、影响最大的一条；
+- 带权重的标签是否 **≤4 个**，且优先给了取景 / 角度？
+- 自然语言**首句是否写死了取景**（对抗漂移）？
+- 动作与天气是否落到了**可见后果**？
+- 质量前缀是否与版本匹配（有没有把 PonyV7 那整套前缀用在裸模型 / Aesthetic 上）？
 - 有没有把宽高比 / 分辨率 / 种子 / CFG / 步数 / 采样器 / 模型文件名漏进提示词？
 - 用户要求的每个主体、角色、可见文字、风格、约束是否都还在？
 - 标签区顺序是否符合 `[质量/元信息/安全] [人数] [角色] [作品] [画师] [通用]`？
 - 标签是否全小写、多词是否用空格、score 标签是否保留下划线、画师是否带 `@`？
 - 标签与自然语言是否互相加强，而不是重复空洞同义词？
 - 是否始终是动漫 / 插画取向（除非用户明确要照片感动漫）？
-- 输出里是否只有 `Positive prompt` / `Negative prompt` 两段？
+- 输出是否按默认格式交付（只有正面正文，没有标题行、围栏或参数段）？
 
 ## 示例
 
@@ -136,11 +174,15 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 
 ```text
 Positive prompt
-masterpiece, best quality, safe, 1girl, solo, silver hair, long hair, blue eyes, black cloak, ruined city, overgrown concrete, melancholic atmosphere, wide shot, detailed background, cool gray palette. A lone silver-haired girl stands in the middle of an abandoned city avenue, her black cloak drifting in the wind, broken glass and moss-covered concrete around her, distant collapsed towers fading into pale morning haze, clean anime lineart with quiet emotional storytelling.
+masterpiece, best quality, safe, 1girl, solo, silver hair, long hair, blue eyes, black cloak, ruined city, overgrown concrete, melancholic atmosphere, (@artist name:2), (cowboy shot:2), off-center, left side, cool gray palette, detailed background. The composition is an off-center cowboy shot: a lone silver-haired girl in a black cloak stands in the middle of an abandoned city avenue, her cloak drifting in the wind while moss-covered concrete and broken glass catch the cold light around her; the collapsed towers behind fall into pale morning haze, muted and out of focus so she stays the one thing you look at.
 
 Negative prompt
 worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad hands, extra fingers, missing fingers, extra limbs, deformed, duplicate face, crossed eyes, messy lineart, watermark, signature, username, logo, unrelated text
 ```
+
+> 示例里的 `@artist name` 是**占位符**——交付时要换成你自己按媒介 / 题材挑的、真实存在的知名画师名，
+> 并核对拼写。这里只演示它该出现的位置（artist 位）与权重档（`:2` 起）。
+> 注意两条高杠杆改动：**补上主画师**、**给取景加权 `(cowboy shot:2)` 并在首句写死取景**。
 
 输入：`画个角色，2021 年的老番质感，要標題「STARLIGHT」`
 

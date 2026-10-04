@@ -36,7 +36,7 @@
 | `Long Hair` `MASTERPIECE` | `long hair` `masterpiece` | 标签区全小写 |
 | `nnn yryr` | `@nnn yryr` | 画师标签必须带 `@`，否则效果极弱 |
 | `{{chibi}}` `chibi::2` `(chibi)` | `(chibi:2)` | Anima 权重需要比 SDXL 更高 |
-| `(mid-air:1.1)` | `(mid-air:1.4)` | 过低权重等于没写 |
+| `(mid-air:1.1)` | `(mid-air:2)` | 过低权重等于没写（Anima 常规 `:2` 起，强强调 `:3~5`） |
 | 缺 safety | 补 `safe` / `sensitive` / `nsfw` / `explicit` | safety 段必写，按内容判定 |
 | `a girl or a boy` / `maybe raining` | 删备选，只留最终画面 | 备选表述会让模型平均化 |
 

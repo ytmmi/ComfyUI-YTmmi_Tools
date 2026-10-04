@@ -1,7 +1,7 @@
 ---
 name: anima-lora-trigger
 description: Place LoRA trigger words and prompt weights correctly in Anima prompts, including character LoRAs, style LoRAs, multi-LoRA role separation, and the higher weight values Anima needs compared with SDXL. Use when the user supplies trigger words, trains or tests Anima LoRAs, or needs weighted tags such as (chibi:2).
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima LoRA 触发词与权重
@@ -47,8 +47,9 @@ Anima 的权重语法与 SDXL 相同，但**需要更大的数值**才能看到�
 
 ## 硬规则
 
-1. **权重值要比 SDXL 高**：官方示例是 `(chibi:2)`。SDXL 常见的 `(x:1.2)` 在 Anima 上几乎看不出差别。
-   建议区间：轻微强调 `1.3~1.5`、明显强调 `1.6~2.0`、强强调 `2.0~2.6`；超过 3 往往烧图或畸变。
+1. **权重值要比 SDXL 大得多**：官方示例就是 `(chibi:2)`。SDXL 常见的 `(x:1.2)` 在 Anima 上几乎看不出差别。
+   建议区间：常规强调 `2` 起、明显强调 `2.5~3`、强强调 `3~4`；超过 5 往往过曝、变形或烧图。
+   全文**加权标签总数 ≤4 个**，把额度优先给最需要压过其它因素的那一路。
 2. **触发词保持逐字原样**：大小写、下划线、空格全部照抄，不要"顺手规范化"。
    Danbooru 的空格规则只适用于普通标签，**不适用于用户提供的触发词**。
 3. **触发词要贴近它作用的对象**：
@@ -80,7 +81,7 @@ Anima 的权重语法与 SDXL 相同，但**需要更大的数值**才能看到�
 
 ```text
 Positive prompt
-masterpiece, best quality, safe, 1girl, solo, sakura_alt, Sakura, short pink hair, green eyes, school uniform, (watercolor_wash:1.8), watercolor, soft bleeding pigment edges, paper texture, full body, standing under a blooming cherry tree, warm spring light. The character trigger keeps Sakura's identity and uniform consistent, while the style trigger drives the rendering toward loose watercolor washes with visible paper grain and soft pigment blooms.
+masterpiece, best quality, safe, 1girl, solo, sakura_alt, Sakura, short pink hair, green eyes, school uniform, (watercolor_wash:3), watercolor, soft bleeding pigment edges, paper texture, full body, standing under a blooming cherry tree, warm spring light. The character trigger keeps Sakura's identity and uniform consistent, while the style trigger drives the rendering toward loose watercolor washes with visible paper grain and soft pigment blooms.
 
 Negative prompt
 worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad hands, extra fingers, missing fingers, extra limbs, deformed, duplicate face, crossed eyes, messy lineart, watermark, signature, username, logo, unrelated text

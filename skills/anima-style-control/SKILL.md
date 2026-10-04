@@ -1,7 +1,7 @@
 ---
 name: anima-style-control
 description: Choose and enforce one explicit art style, medium and rendering technique for Anima prompts, covering cel shading, painterly, manga screentone, retro anime, 2000s anime, game CG, key visual, watercolor, ink and chibi. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when the look drifts between generations or the style is still undecided.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Anima 风格控制（Style Control）
@@ -10,8 +10,9 @@ Anima 在风格上是"泛二次元"模型：**你不指定风格，它每次都�
 风格控制要解决的就是这件事——从媒介（medium）、渲染（rendering）、年代（era）、格式（format）
 四个轴上各选一个，拼成**一个主导风格串**，然后在整批生成里逐字复用。
 
-写风格之前先确认标签语法：标签全小写、多词用空格、画师标签必须带 `@`、权重需要比 SDXL 更高
-（`(painterly:1.5)`）。这些硬规则见 `anima-prompt-format` 的 `references/anima-prompt-baseline.md`。
+写风格之前先确认标签语法：标签全小写、多词用空格、画师标签必须带 `@`、权重需要比 SDXL **大得多**
+（常规 `(painterly:2)` 起，强强调 `:3~5`）。这些硬规则见 `anima-prompt-format` 的
+`references/anima-prompt-baseline.md`。
 
 读 `references/anima-style-taxonomy.md` 获取完整风格分类表（含每个标签的 "use when / avoid when"）
 与批量锁风格配方。本文件只给决策流程。
