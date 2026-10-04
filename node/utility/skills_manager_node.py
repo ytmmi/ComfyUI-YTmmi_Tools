@@ -17,6 +17,12 @@ skills 目录约定（与上游 ComfyUI_Qwen_H3_Prompt 保持一致）：
 - 内置 skills 优先，custom_skills/ 中同 id 的 skills 不覆盖内置；
 - skills 内容仅作为模型提示词指导，不会执行其中声明的脚本、工具或网络调用。
 
+任务家族（「模式」仅在「选择skills」= 自动 时生效，用于筛选清单）：
+- H3-*：MiniMax H3 视频（排除 Qwen-Image 与 Anima 家族）；
+- qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写（各只列本家族 1 个）；
+- Anima：Anima（CircleStone Labs × Comfy Org）二次元插画提示词家族，
+  清单只列 id 以 anima 开头的 skills（11 个 Anima skills 同属该家族）。
+
 输出：
 - skills：所选 skills 的完整指导文本（含参考资料），可直接接入自定义LLM的 skills 接口；
 - skills名称：所选 skills 的 id；
@@ -52,18 +58,20 @@ REFERENCE_SUFFIXES = {".md", ".txt"}
 DEFAULT_SKILL_ID = "h3-prompt-writing"
 
 # 模式选项：既用于选择 h3-prompt-writing 的参考资料，也用于按「任务家族」筛选
-# 「自动」清单中列出的 skills（见 mode_skill_filter）。
+# 「自动」清单中列出的 skills（见 filter_registry_for_mode）。
 #
 # - auto：不筛选，列出全部 skills；h3-prompt-writing 同时提供两份指南；
 # - H3-*：H3 视频任务家族（h3-prompt-writing + 8 个风格类 skills），
 #   且按具体生成模式只提供对应的一份指南（ref2va 用全参考，其余用基础）；
-# - qwen-image-*：Qwen-Image 2.1 图像提示词改写家族（文生图 / 图像编辑）。
+# - qwen-image-*：Qwen-Image 2.1 图像提示词改写家族（文生图 / 图像编辑）；
+# - Anima：Anima 二次元插画任务家族（11 个 anima-* skills）。
 #
 # 解析时同时兼容带前缀与不带前缀的旧写法（旧工作流仍可加载）。
 MODE_PREFIX = "H3-"
 MODE_AUTO = "auto"
 MODE_QWEN_T2I = "qwen-image-t2i"
 MODE_QWEN_EDIT = "qwen-image-edit"
+MODE_ANIMA = "Anima"
 MODE_OPTIONS = (
     MODE_AUTO,
     "H3-t2va",
@@ -73,10 +81,28 @@ MODE_OPTIONS = (
     "H3-ref2va",
     MODE_QWEN_T2I,
     MODE_QWEN_EDIT,
+    MODE_ANIMA,
 )
 
 # Qwen-Image 提示词改写类 skills 的 id 标记（用于区分任务家族）
 QWEN_IMAGE_MARKERS = ("qwen-image",)
+
+# Anima 二次元插画类 skills 的 id 前缀（anima-prompt-format 等），
+# 与 normalize_mode 的 anima- 前缀剥离保持一致（见 _canonical_id）。
+ANIMA_SKILL_MARKERS = ("anima",)
+
+# Anima 家族 skills 的固定「附加说明」：该家族统一采用「默认只出正面提示词」的输出
+# 契约，负面提示词只在用户明确要求时才追加，因此不能沿用只输出单一交付物的通用强调。
+ANIMA_FORMAT_NOTE = (
+    "【输出要求】只输出 Anima 提示词正文本身：**默认只给正面提示词**，"
+    "不要输出负面提示词、不要加 `Positive prompt` 之类的标题行、不要加 Markdown 代码块围栏。"
+    "只有当用户明确要求负面词 / negative prompt，或表示自己那边没有设置负面词时，"
+    "才追加第二段 `Negative prompt`。"
+    "不要输出开头说明、结尾建议、解释、总结、前言或后记；"
+    "不要把分辨率、宽高比、种子、CFG、步数、采样器或模型文件名写进提示词"
+    "（用户明确索要参数建议时，才另起一段 `Suggested settings` 单列），"
+    "也不要复述本条要求。"
+)
 
 # 各「任务家族」模式允许出现在「自动」清单中的 skills。
 # 未在此表且非 H3-* 的模式（即 auto）不做筛选。
@@ -466,14 +492,32 @@ def is_prompt_skill(skill_id) -> bool:
     return any(marker in value for marker in PROMPT_SKILL_MARKERS)
 
 
+def is_anima_skill(skill_id) -> bool:
+    """判断某个 skills 是否属于 Anima 二次元插画家族（id 以 anima 开头）。
+
+    与 normalize_mode 的 anima- 前缀剥离保持一致：`Anima` 模式只列这一家族；
+    `H3-*` 模式排除这一家族。Anima 家族统一采用「Positive prompt /
+    Negative prompt」两段式输出契约，因此需要专属的「附加说明」。
+    """
+    value = str(skill_id or "").strip().casefold()
+    if not value:
+        return False
+    return any(
+        value == marker or value.startswith(f"{marker}-") or f"-{marker}-" in value
+        for marker in ANIMA_SKILL_MARKERS
+    )
+
+
 def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> str:
     """「附加说明」的默认值。
 
     取值优先级：
     1. skills 自身在 SKILL.md front matter / meta.yaml 中声明的 `extra-note`；
-    2. 产出单一交付物的 skills（id 含 `prompt`，含散文与 JSON 两类）→ OUTPUT_ONLY_NOTE；
-    3. 「自动」→ OUTPUT_ONLY_NOTE（不预设具体 skills，用同一套通用强调）；
-    4. 其余风格类 skills → 空（它们会输出分镜/制作方案，强加会误导模型）。
+    2. Anima 家族 skills（id 含 `anima`）→ ANIMA_FORMAT_NOTE
+       （两段式 Positive/Negative 契约，不能只输出单一交付物）；
+    3. 产出单一交付物的 skills（id 含 `prompt`，含散文与 JSON 两类）→ OUTPUT_ONLY_NOTE；
+    4. 「自动」→ OUTPUT_ONLY_NOTE（不预设具体 skills，用同一套通用强调）；
+    5. 其余风格类 skills → 空（它们会输出分镜/制作方案，强加会误导模型）。
 
     注意：这里**不按输出格式分叉**——JSON 与散文都只是「正文」的不同形态，
     格式由所选 skills 的输出契约规定，本强调只负责抑制无关元素。
@@ -483,14 +527,26 @@ def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> st
         return OUTPUT_ONLY_NOTE
 
     # 1. skills 自带声明优先
+    found = False
     try:
         for spec in discover_skill_registry(builtin_root, custom_root):
-            if spec.id.casefold() == value.casefold() and spec.extra_note:
-                return spec.extra_note
+            if spec.id.casefold() == value.casefold():
+                found = True
+                if spec.extra_note:
+                    return spec.extra_note
+                break
     except Exception:
         pass
 
-    # 2. 产出单一交付物的 skills
+    # 2. Anima 家族：两段式输出契约
+    if is_anima_skill(value):
+        return ANIMA_FORMAT_NOTE
+
+    if not found:
+        # 3. 未发现的 id：按通用「单一交付物」规则兜底（不静默丢强调）
+        return OUTPUT_ONLY_NOTE if is_prompt_skill(value) else ""
+
+    # 4. 产出单一交付物的 skills
     return OUTPUT_ONLY_NOTE if is_prompt_skill(value) else ""
 
 
@@ -503,13 +559,17 @@ def normalize_mode(mode: str) -> str:
 
     - `H3-t2va` → `t2va`（H3 生成模式：t2va/i2va/fl2va/l2va/ref2va）
     - `qwen-image-t2i` / `qwen-image-edit` → 原样保留
+    - `Anima` / `anima-text2image` → `Anima`（家族模式，大小写与 anima- 子模式均兼容）
     - 空 → `auto`
 
-    兼容带前缀（H3-t2va）与不带前缀（t2va）两种写法，旧工作流保存的值仍可用。
+    兼容带前缀（H3-t2va）、不带前缀（t2va）与带家族前缀（anima-text2image）
+    等多种写法，旧工作流保存的值仍可用。
     """
     value = str(mode or "").strip().casefold()
     if value in (MODE_QWEN_T2I, MODE_QWEN_EDIT):
         return value
+    if value == MODE_ANIMA.casefold() or value.startswith(f"{MODE_ANIMA.casefold()}-"):
+        return MODE_ANIMA
     if value.startswith(MODE_PREFIX.casefold()):
         value = value[len(MODE_PREFIX):]
     return value or MODE_AUTO
@@ -518,6 +578,11 @@ def normalize_mode(mode: str) -> str:
 def is_qwen_image_mode(mode: str) -> bool:
     """判断模式是否属于 Qwen-Image 提示词改写任务家族。"""
     return normalize_mode(mode) in (MODE_QWEN_T2I, MODE_QWEN_EDIT)
+
+
+def is_anima_mode(mode: str) -> bool:
+    """判断模式是否属于 Anima 二次元插画任务家族。"""
+    return normalize_mode(mode) == MODE_ANIMA
 
 
 def is_h3_mode(mode: str) -> bool:
@@ -532,21 +597,51 @@ def filter_registry_for_mode(registry, mode: str):
     skills，避免模型路由到错误家族（如选 qwen-image-t2i 却读到 H3 视频 skills）。
 
     - qwen-image-t2i / qwen-image-edit：仅该家族对应 skills；
-    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image）；
+    - Anima：仅 Anima 家族（id 以 anima 开头的 11 个 skills）；
+    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image 与 Anima）；
     - auto：不筛选，返回全部。
     """
     normalized = normalize_mode(mode)
     allow = MODE_SKILL_ALLOWLIST.get(normalized)
     if allow is not None:
         return tuple(spec for spec in registry if spec.id in allow)
+    if is_anima_mode(normalized):
+        return tuple(spec for spec in registry if is_anima_skill(spec.id))
     if is_h3_mode(normalized):
-        # H3 家族：排除 Qwen-Image 提示词改写类
+        # H3 家族：排除 Qwen-Image 与 Anima 两个图像提示词家族
         return tuple(
             spec
             for spec in registry
             if not any(m in spec.id.casefold() for m in QWEN_IMAGE_MARKERS)
+            and not is_anima_skill(spec.id)
         )
     return tuple(registry)
+
+
+def mode_family_hint(mode: str = MODE_AUTO) -> str:
+    """返回当前模式的「任务家族」说明，用于自动清单提示模型按家族路由。
+
+    auto 时返回空串（清单不做家族提示，保持中性）。
+    """
+    normalized = normalize_mode(mode)
+    if normalized == MODE_AUTO:
+        return ""
+    if is_anima_mode(normalized):
+        return (
+            "当前模式：Anima（二次元插画）——本清单仅列出 Anima 家族的 skills，"
+            "请只在本家族内选择；不要路由到 H3 视频或 Qwen-Image 家族的写法。"
+        )
+    if is_qwen_image_mode(normalized):
+        return (
+            "当前模式：Qwen-Image 提示词改写——本清单仅列出该家族的 skills，"
+            "请只在本家族内选择；不要路由到 H3 视频或 Anima 家族的写法。"
+        )
+    if is_h3_mode(normalized):
+        return (
+            "当前模式：MiniMax H3 视频——本清单已排除 Qwen-Image 与 Anima 图像提示词"
+            "家族的 skills；图像提示词需求请改用对应的图像家族模式。"
+        )
+    return ""
 
 
 def resolve_effective_mode(skill_id, mode) -> str:
@@ -714,6 +809,9 @@ def build_skills_manifest(
         "正文并未加载。",
         "",
     ]
+    family_hint = mode_family_hint(mode)
+    if family_hint:
+        lines.extend([family_hint, ""])
     for spec in registry:
         label = f"（{spec.display_name}）" if spec.display_name else ""
         lines.append(f"- {spec.id}{label}: {spec.description}")
@@ -788,7 +886,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit（非 auto 时按任务家族筛选自动清单）'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit / Anima（非 auto 时按任务家族筛选自动清单）'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -818,7 +916,9 @@ class SkillsManagerNode:
                         "auto：不筛选，列出全部 skills，h3-prompt-writing 同时提供基础与全参考两份指南；"
                         "H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va：H3 视频家族"
                         "（H3-ref2va 只用全参考指南，其余只用基础指南）；"
-                        "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族",
+                        "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族；"
+                        "Anima：Anima（CircleStone Labs × Comfy Org）二次元插画家族"
+                        "（只列 anima-* 的 11 个 skills）",
                     },
                 ),
                 "包含参考文件": (
@@ -938,16 +1038,22 @@ __all__ = [
     "MODE_AUTO",
     "MODE_QWEN_T2I",
     "MODE_QWEN_EDIT",
+    "MODE_ANIMA",
     "QWEN_IMAGE_MARKERS",
+    "ANIMA_SKILL_MARKERS",
     "MODE_SKILL_ALLOWLIST",
     "normalize_mode",
     "is_qwen_image_mode",
+    "is_anima_mode",
     "is_h3_mode",
     "filter_registry_for_mode",
+    "mode_family_hint",
     "resolve_effective_mode",
     "OUTPUT_ONLY_NOTE",
+    "ANIMA_FORMAT_NOTE",
     "PROMPT_SKILL_MARKERS",
     "is_prompt_skill",
+    "is_anima_skill",
     "default_extra_note",
     "MAX_CHARS_DEFAULT",
     "DEFAULT_SKILL_ID",

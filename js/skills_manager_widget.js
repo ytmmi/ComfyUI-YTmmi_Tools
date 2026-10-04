@@ -5,11 +5,15 @@ import { app } from "../../scripts/app.js";
  *
  * - 「刷新skills」按钮：调用后端 POST /ytmmi/skills/list 重新扫描
  *   skills/（内置）与 custom_skills/（自定义）目录，并更新「选择skills」下拉选项；
+ * - **不弹窗**：刷新结果（成功/失败）只通过「按钮文字短暂变化 + 控制台日志」反馈，
+ *   不使用 alert / confirm / 自绘模态框，避免打断工作流操作；失败时按钮短暂变红提示，
+ *   详细信息写在 console.warn 中（F12 可见）；
  * - 下拉选项更新使用「原地修改 values 数组」（splice），兼容新前端
  *   Vue 响应式渲染（整体替换 options 对象会断开响应式引用导致不刷新）；
  * - 「附加说明」按所选 skills 套用对应的默认强调说明（后端按 skills 返回 extra_note）：
  *   产出单一交付物的提示词类 skills（含散文与 JSON）用「只输出最终内容、不要开头说明
- *   与结尾建议」的强调，风格类 skills 留空；切换 skills 时自动替换；
+ *   与结尾建议」的强调；Anima 家族用「两段式 Positive/Negative」专属强调；
+ *   风格类 skills 留空；切换 skills 时自动替换；
  *   若用户已改成自定义内容则一律不动，避免覆盖用户输入；
  * - 「选择skills」与「模式」联动：只有「选择skills」= 自动 时「模式」才生效。
  *   一旦选了具体 skills，自动把「模式」切回 auto（即"无筛选"），因为此时由该
@@ -22,6 +26,9 @@ app.registerExtension({
 
     const AUTO_SELECTION = "自动";
     const MODE_AUTO = "auto"; // 与 Python 端 MODE_AUTO 一致
+
+    // 按钮文字反馈的停留时间（毫秒）
+    const STATUS_HOLD_MS = 2200;
 
     // 「附加说明」的兜底默认值：取 Python 端 INPUT_TYPES 的 default（自动模式通用强调）
     const fallbackNote =
@@ -87,6 +94,46 @@ app.registerExtension({
     };
 
     /**
+     * 按钮文字反馈（替代弹窗）：
+     * - 成功：绿色文字「✓ …」，失败：红色文字「✗ …」，约 2.2 秒后恢复原文字；
+     * - 同时写控制台日志，详细信息可在 F12 查看，不打断画布操作；
+     * - 只改按钮 label/color（LiteGraph 官方按钮控件属性），并在原控件已带
+     *   text_color 时才同步文字色——避免给非按钮控件塞未知属性。
+     */
+    const flashStatus = function (node, text, ok) {
+      const btn = node.__ytmmiRefreshBtn;
+      if (!btn) return;
+      if (btn.__ytmmiRestoreTimer) {
+        clearTimeout(btn.__ytmmiRestoreTimer);
+        btn.__ytmmiRestoreTimer = null;
+      }
+      if (!btn.__ytmmiBaseLabel) btn.__ytmmiBaseLabel = btn.label || "刷新skills";
+      btn.label = text;
+      btn.color = ok ? "#3f9c53" : "#c0392b";
+      if ("text_color" in btn) {
+        btn.text_color = "#ffffff";
+      }
+      node.setDirtyCanvas?.(true);
+      btn.__ytmmiRestoreTimer = setTimeout(() => {
+        btn.label = btn.__ytmmiBaseLabel;
+        btn.color = undefined;
+        if ("text_color" in btn) btn.text_color = undefined;
+        btn.__ytmmiRestoreTimer = null;
+        node.setDirtyCanvas?.(true);
+      }, STATUS_HOLD_MS);
+    };
+
+    const logInfo = function (message, detail) {
+      if (detail === undefined) console.info(`[skills管理器] ${message}`);
+      else console.info(`[skills管理器] ${message}`, detail);
+    };
+
+    const logError = function (message, detail) {
+      if (detail === undefined) console.warn(`[skills管理器] ${message}`);
+      else console.warn(`[skills管理器] ${message}`, detail);
+    };
+
+    /**
      * 「选择skills」与「模式」联动：
      * - 选了具体 skills → 「模式」切回 auto（模式仅在自动下有意义）；
      * - 切回「自动」→ 恢复用户此前选择的模式（未记录过则保持 auto）。
@@ -126,7 +173,17 @@ app.registerExtension({
       return names;
     };
 
-    nodeType.prototype.refreshSkills = async function () {
+    /**
+     * 重新扫描 skills 目录并更新下拉选项。
+     *
+     * 全程不弹窗：
+     * - 成功：按钮显示「✓ N 个 skills」并写 console.info；
+     * - 失败：按钮显示「✗ 刷新失败」并写 console.warn（含具体原因）；
+     * - 未发现任何 skills：按钮显示「✗ 未发现 skills」并写 console.warn（含放置说明）。
+     */
+    nodeType.prototype.refreshSkills = async function (options) {
+      const opts = options || {};
+      const quiet = Boolean(opts.quiet); // 初始化时的静默刷新不改变按钮文字
       const combo = this.widgets?.find((w) => w.name === "选择skills");
       if (!combo) return;
       try {
@@ -135,9 +192,11 @@ app.registerExtension({
           headers: { "Content-Type": "application/json" },
           body: "{}",
         });
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          alert("刷新skills失败：" + (data.error || resp.status));
+          const reason = data?.error || `HTTP ${resp.status}`;
+          logError(`刷新skills失败：${reason}`);
+          if (!quiet) flashStatus(this, "✗ 刷新失败", false);
           return;
         }
         const names = data.names || [];
@@ -156,21 +215,26 @@ app.registerExtension({
           registerDefault(autoNote);
         }
 
-        if (!names.length) {
-          alert(
-            "未发现任何 skills。\n" +
-              "请在插件的 skills/ 或 custom_skills/ 目录下添加包含 SKILL.md 的子目录后重试。"
-          );
-        }
         setComboOptions(combo, withCurrentValue(combo, names));
         // 选项更新后同步「附加说明」，使新选中 skills 的强调说明立即生效
         syncExtraNote(this);
         this.setDirtyCanvas(true);
-        if (names.length) {
-          alert(`已发现 ${names.length} 个 skills，请在「选择skills」下拉中选择`);
+
+        if (!names.length) {
+          logError(
+            "未发现任何 skills。请在插件的 skills/ 或 custom_skills/ 目录下" +
+              "添加包含 SKILL.md 的子目录后重试。"
+          );
+          if (!quiet) flashStatus(this, "✗ 未发现 skills", false);
+          return;
         }
+
+        logInfo(`已发现 ${names.length} 个 skills，请在「选择skills」下拉中选择`, names);
+        if (!quiet) flashStatus(this, `✓ 已发现 ${names.length} 个`, true);
       } catch (e) {
-        alert("刷新skills失败：" + (e.message || e));
+        const reason = e?.message || e;
+        logError(`刷新skills失败：${reason}`, e);
+        if (!quiet) flashStatus(this, "✗ 刷新失败", false);
       }
     };
 
@@ -183,6 +247,8 @@ app.registerExtension({
         this.refreshSkills();
       });
       btn.serialize = false;
+      // 供 flashStatus 复用（按钮文字/颜色反馈替代弹窗）
+      this.__ytmmiRefreshBtn = btn;
 
       // 「选择skills」切换时：联动「模式」并同步「附加说明」
       const skillsCombo = this.widgets?.find((w) => w.name === "选择skills");
@@ -213,8 +279,8 @@ app.registerExtension({
         };
       }
 
-      // 节点创建后刷新一次，与磁盘上的 skills 目录保持同步
-      setTimeout(() => this.refreshSkills(), 300);
+      // 节点创建后刷新一次，与磁盘上的 skills 目录保持同步（静默：不改按钮文字）
+      setTimeout(() => this.refreshSkills({ quiet: true }), 300);
       // 多次时机同步「模式」联动与「附加说明」，兼容不同前端的控件值恢复时机
       syncModeLinkage(this);
       syncExtraNote(this);
