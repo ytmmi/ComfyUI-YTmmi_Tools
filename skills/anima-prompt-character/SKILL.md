@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-character
 description: Keep one Anima character identical across a set of prompts and build multi-view, multi-expression or outfit-variant character sheets. Use when hair, eyes, outfit, silhouette and a signature accessory must stay stable across Anima renders, when a front/side/back turnaround or expression sheet is requested, or when several characters share one frame and must not merge or swap attributes.
-version: 1.1.0
+version: 1.1.1
 ---
 
 # Anima 角色一致性与三视图（Character Consistency & Character Sheet）
@@ -219,6 +219,7 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 - 只是单张图、不涉及跨图一致性 → `anima-prompt-format`；
 - 视图组里每格的姿势、动作、动态线 → `anima-motion-boost`；
 - 跨图恒定的线条 / 上色 / 时代感 → `anima-style-control`、`anima-style-boost`；
+- 跨图恒定的**配色与色调**（角色表整组的颜色统一）→ `anima-color-harmony`；
 - 同一角色换画师风格 → `anima-prompt-artist`；
 - 对已出图做脸部或服装的局部重绘来修一致性 → `anima-prompt-regional`；
 - 该用哪个质量前缀、负面词怎么裁剪 → `anima-prompt-negative`；

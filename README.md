@@ -50,17 +50,17 @@ ComfyUI 自定义节点工具集，提供图片保存、JSON 文件导出、图�
 | **自动**（默认） | 只把 skills **清单与读取协议**发给模型，模型按需请求读取正文，多轮往返直到给出答案（**渐进式披露**） | 首轮约 6.7k 字符 |
 | 具体 skills | 直接输出该 skills 的完整指导文本（含 `references/`），单轮请求 | 如 h3-prompt-writing 约 42k 字符 |
 
-**实测对比**（22 个内置 skills，`模式` = `auto`）：
+**实测对比**（23 个内置 skills，`模式` = `auto`）：
 
 | 方式 | 字符数 |
 |---|---|
-| 自动模式首轮（清单 + 协议，不筛选） | 12,358 |
+| 自动模式首轮（清单 + 协议，不筛选） | 12,930 |
 | 自动模式首轮（`模式` = `qwen-image-t2i`，按家族筛选） | 813 |
-| 自动模式首轮（`模式` = `Anima`，按家族筛选） | 5,245 |
+| 自动模式首轮（`模式` = `Anima`，按家族筛选） | 5,995 |
 | 固定发送 h3-prompt-writing 全文 | 42,017 |
-| 固定发送全部 22 个 skills 全文 | 395,270 |
+| 固定发送全部 23 个 skills 全文 | 430,463 |
 
-自动模式首轮比固定发送单个 skills 全文**省约 71% 上下文**（按家族筛选时约 88%~98%），且模型可自行决定是否需要 skills、需要哪个、以及是否需要进一步读取参考文件。
+自动模式首轮比固定发送单个 skills 全文**省约 69% 上下文**（按家族筛选时约 86%~98%），且模型可自行决定是否需要 skills、需要哪个、以及是否需要进一步读取参考文件。
 
 ### 渐进式披露（自动模式）
 
@@ -130,23 +130,23 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 
 | `模式` | 任务家族 | 「自动」清单包含 |
 |---|---|---|
-| `auto` | 全部 | 22 个（不筛选） |
-| `H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` / `H3-ref2va` | H3 视频 | 9 个（排除 2 个 Qwen-Image 与 11 个 Anima） |
+| `auto` | 全部 | 23 个（不筛选） |
+| `H3-t2va` / `H3-i2va` / `H3-fl2va` / `H3-l2va` / `H3-ref2va` | H3 视频 | 9 个（排除 2 个 Qwen-Image 与 12 个 Anima） |
 | `qwen-image-t2i` | Qwen-Image 文生图 | **仅 `qwen-image-t2i-prompt`** |
 | `qwen-image-edit` | Qwen-Image 图像编辑 | **仅 `qwen-image-edit-prompt`** |
-| `Anima` | Anima 二次元插画 | **仅 11 个 `anima-*`** |
+| `Anima` | Anima 二次元插画 | **仅 12 个 `anima-*`** |
 
 非 `auto` 模式的清单还会带一行**家族提示**（例：`当前模式：Anima（二次元插画）——本清单仅列出 Anima 家族的 skills，请只在本家族内选择`），进一步降低模型路由到错误家族的概率。
 
-**筛选的意义**：模式已表明任务类型时，清单里不应再出现无关家族的 skills，否则模型可能路由到错误家族（例如选了 `Anima` 却读到 H3 视频 skills）。实测清单体积（22 个内置 skills）：
+**筛选的意义**：模式已表明任务类型时，清单里不应再出现无关家族的 skills，否则模型可能路由到错误家族（例如选了 `Anima` 却读到 H3 视频 skills）。实测清单体积（23 个内置 skills）：
 
 | `模式` | 清单字符数 | 筛选后 skills 数 |
 |---|---|---|
-| `auto` | 12,358 | 22 |
+| `auto` | 12,930 | 23 |
 | `H3-t2va` | 6,743 | 9 |
 | `qwen-image-t2i` | 813 | 1 |
 | `qwen-image-edit` | 863 | 1 |
-| `Anima` | 5,245 | 11 |
+| `Anima` | 5,995 | 12 |
 
 > **模式在节点内的唯一实际作用就是「任务家族筛选」。** 自动清单只列 skills 的 id 与描述（不含正文），模型 `READ:` 某个 skills 时读到的也只是它的 `SKILL.md`，参考资料需另行 `READ: <skills>/references/xxx`——因此模式无法、也不会去挑参考资料。手动分支下模式已被中和，两份指南一律加载。
 >
@@ -156,7 +156,7 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 
 ### 内置 skills
 
-`skills/` 内置 22 个 skills（4 个家族）：
+`skills/` 内置 23 个 skills（4 个家族）：
 
 | 家族 | skills | 说明 |
 |---|---|---|
@@ -170,6 +170,7 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | **Anima** | `anima-style-boost` | 风格增强（线 → 上色 → 色彩 → 光照 → 背景的分层增强阶梯） |
 | **Anima** | `anima-prompt-optimize` | 提示词优化（顺序/空格/一致性/冲突/冗余/版本前缀的逐项修复） |
 | **Anima** | `anima-composition-optimize` | 构图优化（景别 × 机位 × 主体摆放 × 前后景层次 × **鱼眼 / 球面 / 极端透视等特殊情况**） |
+| **Anima** | `anima-color-harmony` | **配色与颜色搭配**（配色骨架 × 明度/饱和度结构 × 主体-背景分色 × 光的颜色，含七套骨架与失败修法） |
 | **Anima** | `anima-prompt-artist` | 画师标签与混合（`@artist` 强制前缀、多画师权重兑配） |
 | **Anima** | `anima-prompt-character` | 角色一致性与三视图（身份锚点 + 多视图/多表情角色表） |
 | **Anima** | `anima-prompt-negative` | 负面提示词与质量前缀（版本矩阵 + 按失败域的负面词表） |
@@ -178,11 +179,11 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 
 其中 `qwen-image-t2i-prompt` 与 `qwen-image-edit-prompt` 来自用户提供的 Qwen-Image 2.1 系统提示词，已改写为 skills 形式：`SKILL.md` 为工作流摘要，**完整原始系统提示词逐字保存在 `references/` 下**（SHA256 与源文件一致），由 skills管理器一并加载。
 
-**Anima 家族**基于 [CircleStone Labs / Comfy Org 官方 Anima 模型卡](https://huggingface.co/circlestone-labs/Anima)、[ComfyUI 官方 Anima 教程](https://docs.comfy.org/tutorials/image/anima/anima) 与社区提示词工程实践整理，全部 11 个 Anima skills 共用一份基准文档 [`skills/anima-prompt-format/references/anima-prompt-baseline.md`](skills/anima-prompt-format/references/anima-prompt-baseline.md)（标签顺序、质量前缀、权重语法、版本差异、能力边界）。Anima 家族的输出默认是**只给正面提示词**，且**不输出任何参数数值**，因此其「附加说明」使用**专属强调**；该强调可在 `SKILL.md` front matter 用 `extra-note:` 覆盖。
+**Anima 家族**基于 [CircleStone Labs / Comfy Org 官方 Anima 模型卡](https://huggingface.co/circlestone-labs/Anima)、[ComfyUI 官方 Anima 教程](https://docs.comfy.org/tutorials/image/anima/anima) 与社区提示词工程实践整理，全部 12 个 Anima skills 共用一份基准文档 [`skills/anima-prompt-format/references/anima-prompt-baseline.md`](skills/anima-prompt-format/references/anima-prompt-baseline.md)（标签顺序、质量前缀、权重语法、版本差异、能力边界）。Anima 家族的输出默认是**只给正面提示词**，且**不输出任何参数数值**，因此其「附加说明」使用**专属强调**；该强调可在 `SKILL.md` front matter 用 `extra-note:` 覆盖。
 
 #### Anima 高杠杆规则（对齐手写系统提示词）
 
-实测「11 个 anima skills + 渐进式披露」的输出曾不如一份手写的 Anima 系统提示词，差距集中在四处。现在这四条已经写进**共同基准**与**各关键 skills 的正文**（渐进式披露只读 `SKILL.md`，不会自动读基准，所以规则必须内联）：
+实测「Anima 家族 skills + 渐进式披露」的输出曾不如一份手写的 Anima 系统提示词，差距集中在四处。现在这四条已经写进**共同基准**与**各关键 skills 的正文**（渐进式披露只读 `SKILL.md`，不会自动读基准，所以规则必须内联）：
 
 | 规则 | 说明 |
 |---|---|
@@ -193,6 +194,21 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 | **⑤ 特殊情况可自主选用** | 用户没指定构图 / 镜头时，**允许模型按题材主动选一个特殊装置**（`fisheye lens` 鱼眼、`spherical composition` 球面构图、`extreme foreshortening` 极端透视、`isometric` 等距版式、`panorama` 全景……），**不要永远回落到最保守的默认景别**。硬约束：用户已指定时**绝不覆盖**、一次只用**一个**、**表格类场景（三视图 / 分镜 / 表情表）禁用**；词表另附每条的效果 / 适用题材 / 风险与三套配方 |
 
 配套改动：Anima 模式的**家族提示**现在会明确要求模型**先读取共同基准**（此前渐进式披露下基准从未被读到），并点出上述硬规则。改动过的 skills 版本号升到 `1.1.0` / `1.2.0`。
+
+#### Anima 配色与颜色搭配（`anima-color-harmony`）
+
+Anima 不指定配色时每次都会自己配一套，常见结果是**发灰、刺眼、或整张只剩一个调子**。该 skills 只管**颜色**这一层，按四步走：
+
+| 步骤 | 内容 |
+|---|---|
+| **① 选配色骨架** | 七套骨架任选其一（**一次只用一套**）：单色 / 类似色 / 互补 / 分割互补 / 三角 / **冷暖对抗**（最万能的默认）/ 单一强调色。落地为**主色 + 辅色 + 强调色**，比例 60 : 30 : 10 |
+| **② 定明度 × 饱和度结构** | 高明度低饱和＝清新治愈；高饱和低明度＝赛博夜戏；**"发灰"的成因就是停在中间饱和 + 中间明度**，解法是往对角走 |
+| **③ 主体与背景分色** | 五种分离手段至少用一层：温度 / 明度 / 饱和度 / 色相 / 边缘光。主体"陷进背景"几乎都是因为两者色相或明度太接近 |
+| **④ 定光的颜色** | 先定光色再定物体色——金色时刻、蓝调时刻、霓虹双色、月光、室内暖光、逆光……光的颜色就是画面的基调 |
+
+配套 `references/anima-color-vocabulary.md` 提供：颜色标签速查（含**互斥提醒**：`vibrant colors` ✗ `muted colors`、`high contrast` ✗ `low contrast`、`monochrome` ✗ 彩色词）、七套骨架的可抄写法、明度×饱和度矩阵、**情绪 → 配色对照表**（治愈 / 燃 / 赛博 / 压抑 / 怀旧 / 童话 / 恐怖 / 华丽）、光的颜色表、分色配方与**失败 → 最小处方**表。
+
+与相邻 skills 的分工：**画法与媒介**归 `anima-style-control`，**细节与纹理**归 `anima-style-boost`，**构图与镜头**归 `anima-composition-optimize`，本 skills 只负责**颜色关系**（其中"光的颜色"归本 skills，"光的方向与体积"归 `anima-style-boost`）。用户没指定配色时**允许模型自主选一套**（硬约束：用户已指定时绝不覆盖、一次只用一套骨架、颜色标签 ≤3 个）。
 
 ### 附加说明的默认强调
 
@@ -224,7 +240,7 @@ READ: <skills名称>/<相对路径>            # 读取该 skills 内的参考�
 这些都属于 ComfyUI 工作流设置，被问到时只回一句「由工作流设置决定」。也不要复述本条要求。
 ```
 
-**Anima skills 的输出默认**（11 个 skills 的 `## 输出契约` 小节统一约定）：
+**Anima skills 的输出默认**（12 个 skills 的 `## 输出契约` 小节统一约定）：
 
 | 情形 | 输出 |
 |---|---|
@@ -423,7 +439,7 @@ ComfyUI-YTmmi_Tools/
 │   │   └── save_json_file_node.py      # 保存JSON文件
 │   └── minimax_h3/                  # YTmmi/minimax-h3 分类
 │       └── h3_sigma_refiner_node.py    # H3 低噪细节精修
-├── skills/                          # 内置 skills（22 个：MiniMax H3 官方 9 个 + Qwen-Image 2.1 提示词 2 个 + Anima 二次元 11 个）
+├── skills/                          # 内置 skills（23 个：MiniMax H3 官方 9 个 + Qwen-Image 2.1 提示词 2 个 + Anima 二次元 12 个）
 ├── custom_skills/                   # 自定义 skills（用户自行添加）
 ├── js/
 │   ├── auto_fill_widget.js         # 前端扩展：执行后自动回填控件值
@@ -449,7 +465,7 @@ ComfyUI-YTmmi_Tools/
   - **skills管理器** 与 **自定义LLM 的 skills 接口** 参考该仓库的 skills 管理方式实现
   - `skills/` 目录中的 9 个 MiniMax H3 skills 来自 [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) 官方 skills
 - **Qwen-Image 2.1 提示词改写**（`qwen-image-t2i-prompt`、`qwen-image-edit-prompt`）— 由用户提供的 Qwen-Image 2.1 系统提示词改写为 skills；原始系统提示词逐字保留在各自的 `references/` 下（SHA256 与源文件一致）
-- **Anima 二次元插画 skills**（`anima-*`，11 个）— 基于 [CircleStone Labs / Comfy Org Anima 官方模型卡](https://huggingface.co/circlestone-labs/Anima) 与 [ComfyUI 官方 Anima 教程](https://docs.comfy.org/tutorials/image/anima/anima) 整理；分区/局部重绘与提示词工程写法参考社区项目 [anima-prompt-crafter-skill](https://github.com/AI-KSK/anima-prompt-crafter-skill) 与 [comfyui-good-anima](https://github.com/ShiroEirin/comfyui-good-anima)（Anima 模型本身由 CircleStone Labs 发布，遵循其非商业许可）
+- **Anima 二次元插画 skills**（`anima-*`，12 个）— 基于 [CircleStone Labs / Comfy Org Anima 官方模型卡](https://huggingface.co/circlestone-labs/Anima) 与 [ComfyUI 官方 Anima 教程](https://docs.comfy.org/tutorials/image/anima/anima) 整理；分区/局部重绘与提示词工程写法参考社区项目 [anima-prompt-crafter-skill](https://github.com/AI-KSK/anima-prompt-crafter-skill) 与 [comfyui-good-anima](https://github.com/ShiroEirin/comfyui-good-anima)（Anima 模型本身由 CircleStone Labs 发布，遵循其非商业许可）
 
 ## 许可证
 

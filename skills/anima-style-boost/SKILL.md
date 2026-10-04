@@ -1,7 +1,7 @@
 ---
 name: anima-style-boost
 description: Intensify and polish the art direction of an existing Anima prompt, covering lineart quality, cel-shading depth, color design, lighting design, background density, key-visual polish and overall aesthetics. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when the style is already chosen but the render still looks flat, muddy or unfinished.
-version: 1.1.0
+version: 1.1.1
 ---
 
 # Anima 风格增强（Style Boost）
@@ -175,6 +175,7 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 - 画师风格与画师权重 → 交给 `anima-prompt-artist`；
 - 角色三视图 / 跨图一致性 → 交给 `anima-prompt-character`；
 - 景别、机位、前中后景、留白 → 交给 `anima-composition-optimize`；
+- **配色骨架、色调情绪、主体与背景分色**（不是"缺光缺细节"，而是颜色关系本身）→ 交给 `anima-color-harmony`；
 - 负面词需要整体重做（不只增强过头类）→ 交给 `anima-prompt-negative`；
 - 分区上色 / 局部重绘的局部增强 → 交给 `anima-prompt-regional`；
 - LoRA 触发词、LoRA 自带质感 → 交给 `anima-lora-trigger`；

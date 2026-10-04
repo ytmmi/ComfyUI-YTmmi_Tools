@@ -1,7 +1,7 @@
 ---
 name: anima-style-control
 description: Choose and enforce one explicit art style, medium and rendering technique for Anima prompts, covering cel shading, painterly, manga screentone, retro anime, 2000s anime, game CG, key visual, watercolor, ink and chibi. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when the look drifts between generations or the style is still undecided.
-version: 1.1.0
+version: 1.1.1
 ---
 
 # Anima 风格控制（Style Control）
@@ -156,7 +156,8 @@ photorealistic` 三件事堵住——注意 `3d render` 只在与 `game cg` 的�
 
 - 标签顺序、大小写、权重语法、质量前缀本身有问题 → 交给 `anima-prompt-format`；
 - 画师风格混搭、画师权重、`@` 标签策略 → 交给 `anima-prompt-artist`；
-- 风格已定，只是想让它更精致（线稿、上色层次、配色、光照、背景密度）→ 交给 `anima-style-boost`；
+- 风格已定，只是想让它更精致（线稿、上色层次、光照、背景密度）→ 交给 `anima-style-boost`；
+- **颜色关系本身**（配色骨架、色调情绪、主体与背景分色、光的颜色）→ 交给 `anima-color-harmony`；
 - 角色身份、多视图一致性、系列图里的角色不变 → 交给 `anima-prompt-character`；
 - 景别、机位、前中后景、留白布局 → 交给 `anima-composition-optimize`；
 - 负面词整体策略（不只风格冲突类）→ 交给 `anima-prompt-negative`；

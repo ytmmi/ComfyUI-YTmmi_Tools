@@ -21,7 +21,7 @@ skills 目录约定（与上游 ComfyUI_Qwen_H3_Prompt 保持一致）：
 - H3-*：MiniMax H3 视频（排除 Qwen-Image 与 Anima 家族）；
 - qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写（各只列本家族 1 个）；
 - Anima：Anima（CircleStone Labs × Comfy Org）二次元插画提示词家族，
-  清单只列 id 以 anima 开头的 skills（11 个 Anima skills 同属该家族）。
+  清单只列 id 以 anima 开头的 skills（12 个 Anima skills 同属该家族）。
 
 输出：
 - skills：所选 skills 的完整指导文本（含参考资料），可直接接入自定义LLM的 skills 接口；
@@ -64,7 +64,7 @@ DEFAULT_SKILL_ID = "h3-prompt-writing"
 # - H3-*：H3 视频任务家族（h3-prompt-writing + 8 个风格类 skills），
 #   且按具体生成模式只提供对应的一份指南（ref2va 用全参考，其余用基础）；
 # - qwen-image-*：Qwen-Image 2.1 图像提示词改写家族（文生图 / 图像编辑）；
-# - Anima：Anima 二次元插画任务家族（11 个 anima-* skills）。
+# - Anima：Anima 二次元插画任务家族（12 个 anima-* skills）。
 #
 # 解析时同时兼容带前缀与不带前缀的旧写法（旧工作流仍可加载）。
 MODE_PREFIX = "H3-"
@@ -597,7 +597,7 @@ def filter_registry_for_mode(registry, mode: str):
     skills，避免模型路由到错误家族（如选 qwen-image-t2i 却读到 H3 视频 skills）。
 
     - qwen-image-t2i / qwen-image-edit：仅该家族对应 skills；
-    - Anima：仅 Anima 家族（id 以 anima 开头的 11 个 skills）；
+    - Anima：仅 Anima 家族（id 以 anima 开头的 12 个 skills）；
     - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image 与 Anima）；
     - auto：不筛选，返回全部。
     """
@@ -922,7 +922,7 @@ class SkillsManagerNode:
                         "（H3-ref2va 只用全参考指南，其余只用基础指南）；"
                         "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族；"
                         "Anima：Anima（CircleStone Labs × Comfy Org）二次元插画家族"
-                        "（只列 anima-* 的 11 个 skills）",
+                        "（只列 anima-* 的 12 个 skills）",
                     },
                 ),
                 "包含参考文件": (

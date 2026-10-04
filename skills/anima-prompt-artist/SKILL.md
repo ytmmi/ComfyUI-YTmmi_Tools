@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-artist
 description: Write Anima artist tags correctly (`@artist` is mandatory, otherwise the effect is very weak), anchor a single-artist style, mix two or three artists by weight, and describe a style safely without any artist name. Use when an Anima prompt needs a specific artist style, when a user-supplied artist name seems to be ignored, when two artists must be blended into one coherent look, or when the user has no artist in mind and only wants to describe a style.
-version: 1.1.0
+version: 1.1.1
 ---
 
 # Anima 画师标签与混合（Artist Tags & Mixing）
@@ -200,6 +200,7 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 
 - 只要基础格式化、不涉及画师 → `anima-prompt-format`；
 - 不用画师名、纯用媒介/线条/上色/配色/年代描述风格 → `anima-style-control`、`anima-style-boost`；
+- **画面整体配色、色调情绪、主体与背景分色**（画师标签对饱和度的影响只是其中一环）→ `anima-color-harmony`；
 - 构图与画风的配合（海报要什么构图）→ `anima-composition-optimize`；
 - 角色一致性（画师风格固定但角色跑了）→ `anima-prompt-character`；
 - LoRA 触发词、LoRA 与画师标签的权重协商 → `anima-lora-trigger`；

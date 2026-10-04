@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-format
 description: Format any idea, brief, character concept, image description or mixed Chinese/English request into Anima-ready prompt blocks (Danbooru tags plus natural-language caption, with the official tag order and quality prefix). Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI, when the user mentions Anima, 二次元, 动漫插画, Danbooru tags or needs one consistent positive/negative prompt pair.
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Anima 提示词格式化（Prompt Format）
@@ -203,6 +203,7 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 - 用户要"照片级写实"时先说明 Anima 不做写实（除非他要的就是照片感的动漫渲染）；
 - 用户要长段文字排版：说明 Anima 文字渲染弱，建议只保留单词或短句，长文字后期加；
 - 需要画师风格混合 → 交给 `anima-prompt-artist`；
+- 整体配色 / 颜色搭配 / 色调与情绪 → 交给 `anima-color-harmony`；
 - 需要分区 / 局部重绘 → 交给 `anima-prompt-regional`；
 - 需要角色多视图一致性 → 交给 `anima-prompt-character`；
 - 需要负面词专项调优 / 版本质量前缀决策 → 交给 `anima-prompt-negative`。

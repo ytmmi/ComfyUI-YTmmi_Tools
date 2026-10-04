@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-optimize
 description: Diagnose and repair an existing Anima prompt, covering tag order, underscore and spacing errors, missing subject count, a contradictory medium, overstuffed synonyms, a quality prefix that does not match the model version, a missing safety tag and vague four-word prompts. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when a prompt already exists but renders badly.
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Anima 提示词优化（Prompt Optimize）
@@ -215,6 +215,7 @@ Changelog（仅作讲解；用户没要时不输出）
 - 需要画师标签、画师混合与权重 → 交给 `anima-prompt-artist`；
 - 角色一致性、多视图、跨图身份 → 交给 `anima-prompt-character`；
 - 景别、机位、前中后景、留白布局 → 交给 `anima-composition-optimize`；
+- 配色发灰 / 刺眼 / 主体陷进背景、需要整体色调 → 交给 `anima-color-harmony`；
 - 负面词需要整体重做而非局部修补 → 交给 `anima-prompt-negative`；
 - 分区上色 / 局部重绘提示词 → 交给 `anima-prompt-regional`；
 - LoRA 触发词缺失或被误删 → 交给 `anima-lora-trigger`；
