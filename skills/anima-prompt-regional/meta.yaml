@@ -1,0 +1,8 @@
+display-name-zh: Anima 分区与局部重绘
+display-name-en: Anima Regional & Inpaint Prompts
+version: 1.0.0
+tag-cn: 提示词 / Anima / 分区 / 局部重绘
+tag-en: Prompt / Anima / Regional / Inpaint
+summary-cn: 生成 Anima 的分区（Regional LLLite）与局部重绘提示词块：Global + 各颜色区域 + Negative，或 Whole image context + Masked area prompt + Negative。
+summary-en: Build Anima Regional LLLite and inpaint prompt blocks - global plus per-colour regions, or whole-image context plus masked-area prompt - each with a matching negative prompt.
+source: web

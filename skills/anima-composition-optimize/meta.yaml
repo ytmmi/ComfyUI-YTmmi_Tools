@@ -1,0 +1,8 @@
+display-name-zh: Anima 构图优化
+display-name-en: Anima Composition Optimization
+version: 1.0.0
+tag-cn: 提示词 / 构图 / 镜头
+tag-en: Prompt / Composition / Camera
+summary-cn: 用景别、机位、朝向、主体位置、景深分层与负空间词汇重建 Anima 提示词的画面结构，并给出常见构图失败的提示词级修法。
+summary-en: Rebuild an Anima prompt's framing with shot size, camera angle, view direction, subject placement, depth layering and negative space, plus prompt-level fixes for the usual composition failures.
+source: web

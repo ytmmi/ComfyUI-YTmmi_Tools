@@ -1,0 +1,8 @@
+display-name-zh: Anima 角色一致性与三视图
+display-name-en: Anima Character Consistency & Character Sheet
+version: 1.0.0
+tag-cn: 提示词 / 角色 / 三视图
+tag-en: Prompt / Character / Character Sheet
+summary-cn: 用逐字复用的身份锚点让 Anima 在多张图、多视角、多表情之间保持同一角色，并给出三视图、表情表与多角色归属的写法。
+summary-en: Keep one Anima character identical across images, views and expressions with a verbatim identity anchor, plus turnaround, expression-sheet and multi-character attribution recipes.
+source: web

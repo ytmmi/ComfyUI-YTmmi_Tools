@@ -1,0 +1,8 @@
+display-name-zh: Anima 风格控制
+display-name-en: Anima Style Control
+version: 1.0.0
+tag-cn: 提示词 / 风格
+tag-en: Prompt / Style
+summary-cn: 为 Anima 提示词选定并锁定唯一主导风格（媒介 × 渲染 × 年代 × 格式），识别互斥风格组合，并用技术特征而非点名真人画师来做风格迁移。
+summary-en: Pick and lock one dominant Anima art style across medium, rendering, era and format, catch mutually exclusive style tags, and express style transfer through technical traits instead of naming a living artist.
+source: web

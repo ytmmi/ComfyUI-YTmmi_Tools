@@ -1,0 +1,8 @@
+display-name-zh: Anima 负面提示词与质量前缀
+display-name-en: Anima Negative Prompt & Quality Prefix
+version: 1.0.0
+tag-cn: 提示词 / 负面 / 质量前缀
+tag-en: Prompt / Negative / Quality Prefix
+summary-cn: 按 Anima-Base / Aesthetic / Turbo / PonyV7 美学 LoRA 栈分叉选择质量前缀，并按本次需求的失败域裁剪负面词而不是堆砌。
+summary-en: Pick the right quality prefix for Anima-Base, Aesthetic, Turbo or a PonyV7-style aesthetic LoRA stack, and trim the negative prompt to the failure domains one request actually has.
+source: web

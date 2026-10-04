@@ -1,0 +1,8 @@
+display-name-zh: Anima 画师标签与混合
+display-name-en: Anima Artist Tags & Mixing
+version: 1.0.0
+tag-cn: 提示词 / 画师 / 风格
+tag-en: Prompt / Artist / Style
+summary-cn: 讲清 Anima 画师标签必须带 @ 前缀的硬规则、1~3 个画师的加权混合方法，以及用户没有画师名时如何用词描述风格。
+summary-en: The mandatory @-prefixed Anima artist tag, weighted mixing of one to three artists, and how to describe a style with words when the user has no artist name.
+source: web

@@ -1,0 +1,8 @@
+display-name-zh: Anima 风格增强
+display-name-en: Anima Style Boost
+version: 1.0.0
+tag-cn: 提示词 / 质感
+tag-en: Prompt / Polish
+summary-cn: 在既定风格不变的前提下按线稿、上色、配色、光照、背景、细节六层加词，用轻中强三档提升 Anima 画面完成度并避免堆同义词导致的退化。
+summary-en: Layer lineart, shading, color, lighting, background and detail tags onto an already-chosen Anima style in light, medium or strong tiers to raise polish without degrading quality through synonym stacking.
+source: web

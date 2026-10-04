@@ -1,0 +1,8 @@
+display-name-zh: Anima 提示词优化
+display-name-en: Anima Prompt Optimize
+version: 1.0.0
+tag-cn: 提示词 / 修复
+tag-en: Prompt / Repair
+summary-cn: 按合法性→顺序→具体性→冲突→冗余→安全/版本前缀的顺序体检并修复已有 Anima 提示词，修复后仍只输出两段提示词，修改说明只在需要时附在之后。
+summary-en: Diagnose and repair an existing Anima prompt in the order legality, ordering, specificity, conflicts, redundancy, safety and version prefix, still returning only the two prompt blocks with any changelog after them.
+source: web

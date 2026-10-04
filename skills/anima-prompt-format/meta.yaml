@@ -1,0 +1,8 @@
+display-name-zh: Anima 提示词格式化
+display-name-en: Anima Prompt Format
+version: 1.0.0
+tag-cn: 提示词 / Anima / 二次元
+tag-en: Prompt / Anima / Anime
+summary-cn: 把任意想法、简述或角色设定格式化为 Anima 可直接使用的提示词（Danbooru 标签 + 英文自然语言描述，含官方标签顺序与版本化质量前缀），输出 Positive / Negative 两段。
+summary-en: Format any idea, brief or character concept into Anima-ready prompts (Danbooru tags plus English caption, official tag order and version-correct quality prefix), returning a Positive/Negative pair.
+source: web

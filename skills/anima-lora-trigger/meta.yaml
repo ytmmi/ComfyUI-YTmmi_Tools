@@ -1,0 +1,8 @@
+display-name-zh: Anima LoRA 触发词与权重
+display-name-en: Anima LoRA Trigger & Weights
+version: 1.0.0
+tag-cn: 提示词 / Anima / LoRA / 权重
+tag-en: Prompt / Anima / LoRA / Weights
+summary-cn: 在 Anima 提示词中正确摆放 LoRA 触发词并按角色分派权重（Anima 权重需比 SDXL 更高，如 (chibi:2)），处理角色/风格/多 LoRA 组合与冲突。
+summary-en: Place LoRA trigger words and prompt weights correctly in Anima prompts, separating character, style and multi-LoRA roles with the higher weight values Anima requires.
+source: web

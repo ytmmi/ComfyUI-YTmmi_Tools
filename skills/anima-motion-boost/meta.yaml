@@ -1,0 +1,8 @@
+display-name-zh: Anima 动作增强
+display-name-en: Anima Motion Boost
+version: 1.0.0
+tag-cn: 提示词 / 动作
+tag-en: Prompt / Motion
+summary-cn: 把静态描述改写成单帧可承载的一个动作节拍，补齐体态锚点、镜头配对与运动暗示标签，避开极姿势崩坏和动词打架。
+summary-en: Turn a static Anima description into one readable action beat, adding body-language anchors, camera pairing and implied-motion tags while avoiding broken anatomy and competing verbs.
+source: web
