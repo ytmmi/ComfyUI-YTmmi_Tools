@@ -4,6 +4,10 @@
 画布取**处于底层的那张图**：默认「图像0」在下、「图像1」在上，因此画布 = 图像0；
 打开「图层顺序翻转」后「图像1」在下，画布 = 图像1。处于上层的那张图按「坐标x / 坐标y」
 贴到画布上，超出画布的部分会被裁掉，画布不会因此变大。
+
+可选「遮罩」输入作用于**上层图层**，作为它的蒙版：遮罩为 1 的地方显示上层，
+为 0 的地方透出底层——与 ComfyUI 官方「Image Composite Masked」的
+``mask * source + (1 - mask) * destination`` 约定一致。
 """
 
 try:
@@ -32,6 +36,16 @@ def _as_image_batch(image):
     return tensor
 
 
+def _as_mask_batch(mask):
+    """把 MASK 规整为 [B, H, W]。"""
+    tensor = mask
+    if tensor.ndim == 2:
+        tensor = tensor.unsqueeze(0)
+    elif tensor.ndim == 4 and tensor.shape[-1] == 1:
+        tensor = tensor[..., 0]
+    return tensor
+
+
 def _stretch(chw, out_h: int, out_w: int):
     """把 [C,H,W] 拉伸到指定宽高（宽高为 0 时表示该方向不限制）。"""
     _, height, width = chw.shape
@@ -48,6 +62,19 @@ def _stretch(chw, out_h: int, out_w: int):
     ).squeeze(0)
 
 
+def _resize_mask(mask_hw, out_h: int, out_w: int):
+    """把 [H,W] 遮罩缩放到上层图层的尺寸，便于与图层逐像素对齐。"""
+    height, width = mask_hw.shape
+    if height == out_h and width == out_w:
+        return mask_hw
+    return F.interpolate(
+        mask_hw.view(1, 1, height, width),
+        size=(max(1, out_h), max(1, out_w)),
+        mode="bilinear",
+        align_corners=False,
+    ).view(max(1, out_h), max(1, out_w))
+
+
 def _split_alpha(chw):
     """把 [C,H,W] 拆成 (RGB 三通道, alpha 或 None)，兼容 1 / 3 / 4 通道。"""
     channels = chw.shape[0]
@@ -58,8 +85,12 @@ def _split_alpha(chw):
     return chw[:3], chw[3:4]
 
 
-def _paste(canvas_chw, patch_chw, x: int, y: int):
-    """把 patch 贴到 canvas 的 (x, y) 处，超出画布的部分裁掉。"""
+def _paste(canvas_chw, patch_chw, x: int, y: int, mask_hw=None):
+    """把 patch 贴到 canvas 的 (x, y) 处，超出画布的部分裁掉。
+
+    ``mask_hw`` 为可选的 [H,W] 蒙版（尺寸与 patch 一致），作用于上层图层：
+    1 显示上层、0 透出底层。为 ``None`` 时上层完全不透明。
+    """
     _, canvas_h, canvas_w = canvas_chw.shape
     _, patch_h, patch_w = patch_chw.shape
 
@@ -83,11 +114,17 @@ def _paste(canvas_chw, patch_chw, x: int, y: int):
     patch_rgb, patch_alpha = _split_alpha(patch_region)
     canvas_rgb, _ = _split_alpha(canvas_region)
 
-    if patch_alpha is None:
+    # 上层的有效覆盖率 = 自身 alpha × 蒙版；两者都没有时完全不透明
+    if mask_hw is None:
+        coverage = patch_alpha
+    else:
+        mask_region = mask_hw[src_y0:src_y1, src_x0:src_x1].unsqueeze(0)
+        coverage = mask_region if patch_alpha is None else patch_alpha * mask_region
+
+    if coverage is None:
         blended = patch_rgb
     else:
-        # 带 alpha 的上层与下层混合
-        blended = patch_rgb * patch_alpha + canvas_rgb * (1.0 - patch_alpha)
+        blended = patch_rgb * coverage + canvas_rgb * (1.0 - coverage)
 
     canvas_channels = canvas_region.shape[0]
     if canvas_channels == 1:
@@ -107,7 +144,7 @@ class ImageMergeNode:
     """图像合并。"""
 
     CATEGORY = "YTmmi/image"
-    DESCRIPTION = "图像合并：把上层图像按坐标x、坐标y贴到底层图像上，用于还原遮罩裁剪图像的结果"
+    DESCRIPTION = "图像合并：把上层图像按坐标x、坐标y贴到底层图像上，可用遮罩给上层做蒙版，用于还原遮罩裁剪图像的结果"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -123,6 +160,10 @@ class ImageMergeNode:
                 "高": ("INT", {"default": 0, "min": 0, "max": 100000, "step": 1}),
                 "图层顺序翻转": ("BOOLEAN", {"default": False}),
             },
+            "optional": {
+                # 蒙版只作用于「在上面的图层」：遮罩为 1 显示上层、为 0 透出底层
+                "遮罩": ("MASK",),
+            },
         }
 
     RETURN_TYPES = ("IMAGE",)
@@ -130,7 +171,7 @@ class ImageMergeNode:
     FUNCTION = "merge"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)
-    SEARCH_ALIASES = ["image merge", "paste image", "uncrop", "图像合并", "图像拼接"]
+    SEARCH_ALIASES = ["image merge", "paste image", "uncrop", "图像合并", "图像拼接", "蒙版合并"]
 
     def merge(self, **kwargs):
         if torch is None:
@@ -146,14 +187,19 @@ class ImageMergeNode:
         out_w = int(kwargs.get("宽", 0))
         out_h = int(kwargs.get("高", 0))
         flip = bool(kwargs.get("图层顺序翻转", False))
+        mask = kwargs.get("遮罩")
 
         batch0 = _as_image_batch(image0).float()
         batch1 = _as_image_batch(image1).float()
+        batch_mask = None if mask is None else _as_mask_batch(mask).float()
 
         # 底层决定画布：默认图像0 在下，翻转后图像1 在下
         bottom, top = (batch1, batch0) if flip else (batch0, batch1)
 
         batch = max(bottom.shape[0], top.shape[0])
+        if batch_mask is not None:
+            batch = max(batch, batch_mask.shape[0])
+
         results = []
         for index in range(batch):
             canvas_chw = bottom[min(index, bottom.shape[0] - 1)].permute(2, 0, 1)
@@ -165,7 +211,14 @@ class ImageMergeNode:
 
             # 宽 / 高为 0 表示不限制（保持原尺寸），否则按指定尺寸拉伸
             patch_chw = _stretch(patch_chw, out_h, out_w)
-            results.append(_paste(canvas_chw, patch_chw, x, y).permute(1, 2, 0))
+
+            mask_hw = None
+            if batch_mask is not None:
+                mask_index = min(index, batch_mask.shape[0] - 1)
+                # 蒙版跟随上层图层的最终尺寸（含拉伸），逐像素对齐
+                mask_hw = _resize_mask(batch_mask[mask_index], patch_chw.shape[1], patch_chw.shape[2])
+
+            results.append(_paste(canvas_chw, patch_chw, x, y, mask_hw).permute(1, 2, 0))
 
         return (torch.stack(results, dim=0),)
 
