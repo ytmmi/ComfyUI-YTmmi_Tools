@@ -79,6 +79,16 @@ try:
         NODE_CLASS_MAPPINGS as H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.image.mask_crop_image_node import (
+        MaskCropImageNode,
+        NODE_CLASS_MAPPINGS as MASK_CROP_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as MASK_CROP_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from .node.image.image_merge_node import (
+        ImageMergeNode,
+        NODE_CLASS_MAPPINGS as IMAGE_MERGE_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as IMAGE_MERGE_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 except ImportError:  # pragma: no cover - fallback for direct module loading
     from node.image.image_to_png_node import (
         ImageToPngNode,
@@ -160,6 +170,16 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.image.mask_crop_image_node import (
+        MaskCropImageNode,
+        NODE_CLASS_MAPPINGS as MASK_CROP_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as MASK_CROP_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from node.image.image_merge_node import (
+        ImageMergeNode,
+        NODE_CLASS_MAPPINGS as IMAGE_MERGE_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as IMAGE_MERGE_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 
 # 声明前端 JS 文件目录，ComfyUI 会自动加载该目录下的所有 .js 文件
 WEB_DIRECTORY = "./js"
@@ -181,6 +201,8 @@ NODE_CLASS_MAPPINGS = {
     **KEY_STORAGE_NODE_CLASS_MAPPINGS,
     **SKILLS_MANAGER_NODE_CLASS_MAPPINGS,
     **H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
+    **MASK_CROP_NODE_CLASS_MAPPINGS,
+    **IMAGE_MERGE_NODE_CLASS_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -200,6 +222,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **KEY_STORAGE_NODE_DISPLAY_NAME_MAPPINGS,
     **SKILLS_MANAGER_NODE_DISPLAY_NAME_MAPPINGS,
     **H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
+    **MASK_CROP_NODE_DISPLAY_NAME_MAPPINGS,
+    **IMAGE_MERGE_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 __all__ = [
@@ -222,4 +246,6 @@ __all__ = [
     "KeyStorageNode",
     "SkillsManagerNode",
     "H3SigmaRefinerNode",
+    "MaskCropImageNode",
+    "ImageMergeNode",
 ]
