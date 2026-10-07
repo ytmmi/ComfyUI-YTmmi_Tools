@@ -11,6 +11,11 @@
 与 Easy-Use 的差异：尺寸取 ``max - min + 1``，因此「裁剪乘数」为 1 时
 裁剪框**完整包含遮罩的全部非零像素**（Easy-Use 用 ``max - min`` 会丢掉最后一列/行）。
 
+新增「裁剪为正方形」开关（默认关闭）：打开后裁剪框取长边作为正方形边长，
+并夹取到画面能容纳的最大正方形，输出「裁剪图像」「裁剪遮罩」与「宽 / 高」恒为正方形。
+画布本身不是正方形时，边长以较短边为上限，因此**可能无法完整包含遮罩**——
+此时按「不越界」优先，绝不越过画面边界。
+
 坐标端口声明为 ``INT,FLOAT`` 联合类型：裁剪结果本来就是整数像素，
 而配套「图像合并」的坐标输入是 FLOAT（需要支持 0~1 百分比），
 联合类型让坐标既能接 FLOAT 输入、也能接 INT 输入。
@@ -62,7 +67,7 @@ def _place_axis(center: int, box: int, lo_mask: int, hi_mask: int, limit: int) -
     return max(0, min(start, limit - box))
 
 
-def compute_crop_box(mask_np, crop_multi: float = 1.0):
+def compute_crop_box(mask_np, crop_multi: float = 1.0, square: bool = False):
     """按遮罩非零区域算出裁剪框 ``(x, y, 宽, 高)``。
 
     尺寸取 ``max - min + 1``（``max`` 是含端点的像素坐标），因此 ``裁剪乘数 = 1`` 时
@@ -72,6 +77,11 @@ def compute_crop_box(mask_np, crop_multi: float = 1.0):
 
     中心取遮罩重心，随后在「既不越界、又完整包含遮罩」的范围内定位，
     因此 ``裁剪乘数 >= 1`` 时永远不会有遮罩像素落在裁剪框外。
+
+    ``square = True`` 时先按上面的规则算出宽高，再取长边作为正方形边长，
+    并夹取到 ``min(画面宽, 画面高)``——画布本身的短边是正方形能取到的上限。
+    正方形仍以遮罩重心居中；当画面容不下覆盖遮罩的正方形时（``side`` 被夹小），
+    退回「只保证不越界」的居中定位。
     """
     height, width = mask_np.shape
     ys, xs = np.nonzero(mask_np)
@@ -87,6 +97,12 @@ def compute_crop_box(mask_np, crop_multi: float = 1.0):
     box_w = min(box_w, width)
     box_h = min(box_h, height)
 
+    if square:
+        # 长边作为正方形边长；画面短边是上限（非正方形画布容不下更大正方形）
+        side = max(1, min(max(box_w, box_h), width, height))
+        box_w = side
+        box_h = side
+
     center_x = int(round(float(xs.mean())))
     center_y = int(round(float(ys.mean())))
 
@@ -99,7 +115,7 @@ class MaskCropImageNode:
     """遮罩裁剪图像。"""
 
     CATEGORY = "YTmmi/image"
-    DESCRIPTION = "遮罩裁剪图像：按遮罩区域裁剪图像与遮罩，输出裁剪框的坐标x、坐标y、宽、高，并原样透传原始图像"
+    DESCRIPTION = "遮罩裁剪图像：按遮罩区域裁剪图像与遮罩，输出裁剪框的坐标x、坐标y、宽、高，并原样透传原始图像；可开启「裁剪为正方形」"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -108,6 +124,8 @@ class MaskCropImageNode:
                 "图像": ("IMAGE",),
                 "遮罩": ("MASK",),
                 "裁剪乘数": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.001}),
+                # 关闭（默认）时行为与加该开关前完全一致
+                "裁剪为正方形": ("BOOLEAN", {"default": False}),
             },
         }
 
@@ -117,7 +135,7 @@ class MaskCropImageNode:
     FUNCTION = "crop"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False, False, False, False, False, False, False)
-    SEARCH_ALIASES = ["mask crop", "crop from mask", "遮罩裁剪", "裁剪图像"]
+    SEARCH_ALIASES = ["mask crop", "crop from mask", "遮罩裁剪", "裁剪图像", "正方形裁剪", "square crop"]
 
     def crop(self, **kwargs):
         if torch is None:
@@ -130,6 +148,8 @@ class MaskCropImageNode:
 
         # Easy-Use 的图像裁剪乘数与遮罩裁剪乘数在此合并为一个「裁剪乘数」，同时作用于两者
         crop_multi = float(kwargs.get("裁剪乘数", 1.0))
+        # 开关默认关闭：不传该键时保持原行为
+        square = bool(kwargs.get("裁剪为正方形", False))
 
         image_t = _as_single_image(image).float()
         mask_t = _as_single_mask(mask).float()
@@ -152,7 +172,7 @@ class MaskCropImageNode:
             )
 
         mask_np = mask_t[0].detach().cpu().numpy() > 0
-        x, y, box_w, box_h = compute_crop_box(mask_np, crop_multi)
+        x, y, box_w, box_h = compute_crop_box(mask_np, crop_multi, square)
 
         # 裁剪框已夹取到画面内，直接按它裁出，输出尺寸恒等于 (box_h, box_w)
         cropped_image = image_t[:, y : y + box_h, x : x + box_w, :]
