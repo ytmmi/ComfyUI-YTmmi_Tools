@@ -18,12 +18,20 @@ import { app } from "../../scripts/app.js";
  * 展示回填：
  * - Python 端在 show() 中返回 {"ui": {"文本": [合并展示文本]}, "result": ...}，
  *   前端在 onExecuted 中读取该值回填到「文本」控件。
- * - 「文本」控件设为只读（read_only + serialize=false，官方 PreviewText 同款），
- *   避免新版前端把 STRING 文本框当成可连接端口误用。
+ * - 「文本」控件设为只读（read_only），避免新版前端把 STRING 文本框当成可连接端口误用。
+ *
+ * 展示文本嵌入工作流数据（参考 ComfyUI-Easy-Use 的「展示任何」节点）：
+ * - 「文本」控件保持可序列化（serialize 不为 false）。官方 PreviewText 会关闭序列化，
+ *   那样文本只存在于浏览器内存里；保持序列化后，展示结果会写入工作流节点的
+ *   widgets_values，保存工作流 / 重新载入 / 从 PNG 载入时都能看到上次的展示内容。
+ * - 载入工作流时从 widgets_values 恢复控件内容，兼容未自动恢复控件值的旧前端。
+ * - Python 端另外通过隐藏输入 extra_pnginfo 把文本写回运行时工作流快照，
+ *   使历史记录与输出图片元数据中的工作流同样带上展示文本。
  */
 
 const MAX_INPUTS = 9; // 与 Python 端 MAX_INPUTS 保持一致
 const INPUT_SLOT = 1; // LiteGraph.INPUT
+const DISPLAY_WIDGET_NAME = "文本"; // 与 Python 端 DISPLAY_WIDGET_NAME 保持一致
 
 app.registerExtension({
   name: "YTmmi.DisplayText",
@@ -60,23 +68,35 @@ app.registerExtension({
       node.setDirtyCanvas?.(true, true);
     };
 
-    // 展示控件设为只读，避免用户误当文本输入使用
+    // 展示控件设为只读，避免用户误当文本输入使用。
+    // 注意：这里刻意不关闭序列化（不设置 options.serialize / widget.serialize = false），
+    // 否则展示文本只会停留在浏览器内存中，保存工作流后即丢失。
+    // 保持可序列化后，展示文本会随节点的 widgets_values 一起存入工作流数据。
     const makeReadOnly = function (widget) {
       if (!widget) return;
       widget.options.read_only = true;
-      widget.options.serialize = false;
       if (widget.element) {
         widget.element.readOnly = true;
       }
-      widget.serialize = false;
+    };
+
+    // 从工作流数据恢复上次的展示文本（旧版前端不会自动恢复控件值时的兜底）
+    const restoreFromWorkflowData = function (node, nodeData) {
+      const widget = node.widgets?.find((w) => w.name === DISPLAY_WIDGET_NAME);
+      if (!widget) return;
+      const values = nodeData?.widgets_values;
+      if (Array.isArray(values) && typeof values[0] === "string") {
+        widget.value = values[0];
+      }
     };
 
     // 新版前端可能把「文本」STRING 展示控件转成可连接端口（含旧工作流中已保存的端口），
     // 未连接时执行会报 Missing connection。主动删除该输入端口，强制保持为纯展示控件。
+    // 端口只影响连线，不影响 node.widgets 中的展示控件本身及其序列化。
     const removeTextPort = function (node) {
       if (!node.inputs) return;
       for (let i = node.inputs.length - 1; i >= 0; i--) {
-        if (node.inputs[i].name === "文本") {
+        if (node.inputs[i].name === DISPLAY_WIDGET_NAME) {
           node.removeInput(i);
         }
       }
@@ -85,7 +105,7 @@ app.registerExtension({
     const originalOnNodeCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const r = originalOnNodeCreated?.apply(this, arguments);
-      makeReadOnly(this.widgets?.find((w) => w.name === "文本"));
+      makeReadOnly(this.widgets?.find((w) => w.name === DISPLAY_WIDGET_NAME));
       // 节点创建/加载后多次刷新，兼容不同前端版本的输入填充时机
       const sync = () => {
         syncInputs(this);
@@ -98,11 +118,14 @@ app.registerExtension({
       return r;
     };
 
-    // 加载工作流（configure）后端口会按保存内容恢复，需再次删除「文本」端口
+    // 加载工作流（configure）后端口会按保存内容恢复，需再次删除「文本」端口；
+    // 同时从工作流数据恢复上次的展示文本。
     const originalOnConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function () {
+      const info = arguments[0];
       const r = originalOnConfigure?.apply(this, arguments);
       removeTextPort(this);
+      restoreFromWorkflowData(this, info);
       return r;
     };
 
@@ -122,13 +145,15 @@ app.registerExtension({
       const execData = arguments[0];
       if (!execData) return;
 
-      const textValue = execData["文本"]?.[0];
+      const textValue = execData[DISPLAY_WIDGET_NAME]?.[0];
       if (textValue === undefined) return;
 
-      const textWidget = this.widgets?.find((w) => w.name === "文本");
+      const textWidget = this.widgets?.find((w) => w.name === DISPLAY_WIDGET_NAME);
       if (textWidget && textWidget.value !== textValue) {
         textWidget.value = textValue;
-        this.setDirtyCanvas(true);
+        // 展示控件可序列化，改动后需标记画布/工作流为已修改，确保文本被保存
+        this.setDirtyCanvas?.(true);
+        this.graph?.setDirtyCanvas?.(true, true);
       }
     };
   },

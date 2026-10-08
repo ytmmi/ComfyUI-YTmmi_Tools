@@ -20,6 +20,11 @@
 
 前端默认只显示「输入0」，连接后自动显现下一个输入口，最多 9 个
 （输入0 ~ 输入8，与 MAX_INPUTS 一致）。
+
+展示文本嵌入工作流数据：
+参考 ComfyUI-Easy-Use 的「展示任何」(easy showAnything) 节点，本节点在执行时
+通过隐藏输入 unique_id / extra_pnginfo 拿到本次运行的工作流快照，并按节点 id
+把展示文本写回该节点，使展示结果随工作流数据一起保留（而不是只存在于浏览器内存）。
 """
 
 import json
@@ -28,6 +33,9 @@ import torch
 
 # 输入口总数：输入0 ~ 输入8，前端 JS 按此值同步动态端口
 MAX_INPUTS = 9
+
+# 展示控件名：既用于 INPUT_TYPES 的展示控件，也用于回写工作流数据时的字段名
+DISPLAY_WIDGET_NAME = "文本"
 
 
 class DisplayTextNode:
@@ -41,7 +49,7 @@ class DisplayTextNode:
         optional = {
             # 「文本」为展示控件（执行后回填结果）。放在 optional 可避免新版前端把
             # required STRING 转成可连接端口后，未连接时执行报 "Missing connection"。
-            "文本": (
+            DISPLAY_WIDGET_NAME: (
                 "STRING",
                 {
                     "default": "",
@@ -55,6 +63,12 @@ class DisplayTextNode:
         return {
             "required": {},
             "optional": optional,
+            # 隐藏输入：由 ComfyUI 在执行时注入，不占用前端端口。
+            # unique_id 用于定位当前节点，extra_pnginfo 是本次运行的工作流快照。
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+            },
         }
 
     RETURN_TYPES = ("STRING",)
@@ -89,7 +103,66 @@ class DisplayTextNode:
                 else:
                     blocks.append(f"────── 输入{idx} ──────\n\n{text}")
             display_text = "\n\n".join(blocks)
-        return {"ui": {"文本": [display_text]}, "result": (display_text,)}
+
+        # 把展示文本写回本次运行的工作流快照，使其随工作流数据一起保留
+        self._embed_display_text(
+            kwargs.get("extra_pnginfo"),
+            kwargs.get("unique_id"),
+            display_text,
+        )
+        return {
+            "ui": {DISPLAY_WIDGET_NAME: [display_text]},
+            "result": (display_text,),
+        }
+
+    @staticmethod
+    def _embed_display_text(extra_pnginfo, unique_id, display_text):
+        """将展示文本写入工作流快照中本节点的 widgets_values。
+
+        参考 ComfyUI-Easy-Use 的「展示任何」(easy showAnything)：ComfyUI 在执行
+        节点时通过隐藏输入注入本次运行的工作流快照 (extra_pnginfo) 与节点 id
+        (unique_id)，节点据此把结果写回自己的工作流节点，使展示文本成为工作流
+        数据的一部分（历史记录、输出图片元数据、由 PNG 载入的工作流）。
+
+        返回是否成功写入；任何结构不符合预期的情况都安静跳过，不影响节点执行。
+        """
+        if not isinstance(extra_pnginfo, dict):
+            return False
+        workflow = extra_pnginfo.get("workflow")
+        if not isinstance(workflow, dict):
+            return False
+        nodes = workflow.get("nodes")
+        if not isinstance(nodes, list):
+            return False
+
+        # unique_id 可能被包成单元素列表（取决于执行器传入形式）
+        node_id = unique_id[0] if isinstance(unique_id, (list, tuple)) and unique_id else unique_id
+        if node_id is None:
+            return False
+
+        target = next(
+            (
+                node
+                for node in nodes
+                if isinstance(node, dict) and str(node.get("id")) == str(node_id)
+            ),
+            None,
+        )
+        if target is None:
+            return False
+
+        # 「文本」是本节点唯一可序列化控件，位于 widgets_values 首位；
+        # 保留其余位置，避免后续新增控件时被覆盖
+        widgets_values = target.get("widgets_values")
+        if isinstance(widgets_values, list) and widgets_values:
+            widgets_values[0] = display_text
+        else:
+            target["widgets_values"] = [display_text]
+        # 新版前端在启用按名恢复时会读取 widgets_values_named，存在则同步更新
+        named = target.get("widgets_values_named")
+        if isinstance(named, dict):
+            named[DISPLAY_WIDGET_NAME] = display_text
+        return True
 
     @staticmethod
     def _empty_placeholder(index):
