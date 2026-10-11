@@ -89,6 +89,36 @@ try:
         NODE_CLASS_MAPPINGS as IMAGE_MERGE_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as IMAGE_MERGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.list.split_string_node import (
+        SplitStringNode,
+        NODE_CLASS_MAPPINGS as SPLIT_STRING_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SPLIT_STRING_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from .node.list.list_split_strings_node import (
+        ListSplitStringsNode,
+        NODE_CLASS_MAPPINGS as LIST_SPLIT_STRINGS_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as LIST_SPLIT_STRINGS_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from .node.list.list_extract_string_node import (
+        ListExtractStringNode,
+        NODE_CLASS_MAPPINGS as LIST_EXTRACT_STRING_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as LIST_EXTRACT_STRING_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from .node.list.strings_to_list_node import (
+        StringsToListNode,
+        NODE_CLASS_MAPPINGS as STRINGS_TO_LIST_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as STRINGS_TO_LIST_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from .node.list.merge_lists_node import (
+        MergeListsNode,
+        NODE_CLASS_MAPPINGS as MERGE_LISTS_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as MERGE_LISTS_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from .node.list.list_info_node import (
+        ListInfoNode,
+        NODE_CLASS_MAPPINGS as LIST_INFO_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as LIST_INFO_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 except ImportError:  # pragma: no cover - fallback for direct module loading
     from node.image.image_to_png_node import (
         ImageToPngNode,
@@ -180,6 +210,36 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as IMAGE_MERGE_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as IMAGE_MERGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.list.split_string_node import (
+        SplitStringNode,
+        NODE_CLASS_MAPPINGS as SPLIT_STRING_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SPLIT_STRING_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from node.list.list_split_strings_node import (
+        ListSplitStringsNode,
+        NODE_CLASS_MAPPINGS as LIST_SPLIT_STRINGS_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as LIST_SPLIT_STRINGS_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from node.list.list_extract_string_node import (
+        ListExtractStringNode,
+        NODE_CLASS_MAPPINGS as LIST_EXTRACT_STRING_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as LIST_EXTRACT_STRING_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from node.list.strings_to_list_node import (
+        StringsToListNode,
+        NODE_CLASS_MAPPINGS as STRINGS_TO_LIST_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as STRINGS_TO_LIST_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from node.list.merge_lists_node import (
+        MergeListsNode,
+        NODE_CLASS_MAPPINGS as MERGE_LISTS_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as MERGE_LISTS_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    from node.list.list_info_node import (
+        ListInfoNode,
+        NODE_CLASS_MAPPINGS as LIST_INFO_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as LIST_INFO_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 
 # 声明前端 JS 文件目录，ComfyUI 会自动加载该目录下的所有 .js 文件
 WEB_DIRECTORY = "./js"
@@ -203,6 +263,12 @@ NODE_CLASS_MAPPINGS = {
     **H3_SIGMA_REFINER_NODE_CLASS_MAPPINGS,
     **MASK_CROP_NODE_CLASS_MAPPINGS,
     **IMAGE_MERGE_NODE_CLASS_MAPPINGS,
+    **SPLIT_STRING_NODE_CLASS_MAPPINGS,
+    **LIST_SPLIT_STRINGS_NODE_CLASS_MAPPINGS,
+    **LIST_EXTRACT_STRING_NODE_CLASS_MAPPINGS,
+    **STRINGS_TO_LIST_NODE_CLASS_MAPPINGS,
+    **MERGE_LISTS_NODE_CLASS_MAPPINGS,
+    **LIST_INFO_NODE_CLASS_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -224,6 +290,12 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **H3_SIGMA_REFINER_NODE_DISPLAY_NAME_MAPPINGS,
     **MASK_CROP_NODE_DISPLAY_NAME_MAPPINGS,
     **IMAGE_MERGE_NODE_DISPLAY_NAME_MAPPINGS,
+    **SPLIT_STRING_NODE_DISPLAY_NAME_MAPPINGS,
+    **LIST_SPLIT_STRINGS_NODE_DISPLAY_NAME_MAPPINGS,
+    **LIST_EXTRACT_STRING_NODE_DISPLAY_NAME_MAPPINGS,
+    **STRINGS_TO_LIST_NODE_DISPLAY_NAME_MAPPINGS,
+    **MERGE_LISTS_NODE_DISPLAY_NAME_MAPPINGS,
+    **LIST_INFO_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 __all__ = [
@@ -248,4 +320,10 @@ __all__ = [
     "H3SigmaRefinerNode",
     "MaskCropImageNode",
     "ImageMergeNode",
+    "SplitStringNode",
+    "ListSplitStringsNode",
+    "ListExtractStringNode",
+    "StringsToListNode",
+    "MergeListsNode",
+    "ListInfoNode",
 ]
