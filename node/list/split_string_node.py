@@ -1,5 +1,5 @@
-# 分离字符串
-"""分离字符串节点。
+# 分离字符串到列表
+"""分离字符串到列表节点。
 
 按自定义分隔符把输入字符串切分为列表：
 
@@ -47,7 +47,7 @@ class SplitStringNode:
     """按自定义分隔符把字符串切分为列表。"""
 
     CATEGORY = "YTmmi/list"
-    DESCRIPTION = "分离字符串：按自定义分隔符把输入字符串切分为列表，可保留分隔符（保留时分隔符置于后一项开头，如 ---222）"
+    DESCRIPTION = "分离字符串到列表：按自定义分隔符把输入字符串切分为列表，可保留分隔符（保留时分隔符置于后一项开头，如 ---222）"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -68,6 +68,7 @@ class SplitStringNode:
         "split string",
         "separate string",
         "string to list",
+        "分离字符串到列表",
         "分离字符串",
         "切分字符串",
         "分隔符",
@@ -85,7 +86,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SplitStringNode": "分离字符串",
+    "SplitStringNode": "分离字符串到列表",
 }
 
 __all__ = [
