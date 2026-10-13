@@ -1,5 +1,5 @@
-# 字符到列表
-"""字符到列表节点。
+# 字符串到列表
+"""字符串到列表节点。
 
 把多个字符串输入按端口顺序合并为一个列表：
 
@@ -20,7 +20,7 @@ class StringsToListNode:
     """把多个字符串输入按端口顺序合并为列表。"""
 
     CATEGORY = "YTmmi/list"
-    DESCRIPTION = "字符到列表：把多个字符串输入按端口顺序合并为列表（最多 20 个，按需显示），未连接的端口忽略"
+    DESCRIPTION = "字符串到列表：把多个字符串输入按端口顺序合并为列表（最多 20 个，按需显示），未连接的端口忽略"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -39,7 +39,7 @@ class StringsToListNode:
     SEARCH_ALIASES = [
         "strings to list",
         "join strings",
-        "字符到列表",
+        "字符串到列表",
         "字符串转列表",
         "多字符串合并",
     ]
@@ -62,7 +62,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "StringsToListNode": "字符到列表",
+    "StringsToListNode": "字符串到列表",
 }
 
 __all__ = [

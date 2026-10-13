@@ -5,8 +5,11 @@
 
 - 最多输出 ``MAX_OUTPUTS``（20）项，**列表超出 20 项的部分不处理**（丢弃）；
 - 列表不足 20 项时，多余端口输出**空字符串**（ComfyUI 要求所有声明的输出都必须返回）；
-- 非字符串元素会被转为字符串，``None`` 元素输出空字符串；
-- 执行时通过 ``ui`` 回传实际项数，前端据此只显示用得到的输出端口（按需显示）。
+- 非字符串元素会被转为字符串，``None`` 元素输出空字符串。
+
+输出端口的按需显示完全由前端在**工作流构建阶段（运行前）**按连线决定
+（见 ``js/list_split_strings_widget.js``：连一个末尾端口就追加下一个），
+与本次运行结果无关，因此节点只返回纯元组，不再回传 ``ui`` 项数。
 """
 
 # 列表端口使用的类型名（本插件 6 个列表节点统一使用该类型，保证可互连）
@@ -59,15 +62,12 @@ class ListSplitStringsNode:
 
     def split_list(self, **kwargs):
         items = ensure_list(kwargs.get("列表"))
-        outputs = [
+        # 所有声明的输出端口都必须返回；未使用的端口输出空字符串。
+        # 端口数量由前端在工作流构建阶段按连线决定，节点无需回传任何 ui 信息。
+        return tuple(
             item_to_string(items[i]) if i < len(items) else ""
             for i in range(MAX_OUTPUTS)
-        ]
-        # ui 回传实际项数：前端据此按需显示输出端口（超出 20 的部分已不处理）
-        return {
-            "ui": {"数量": [min(len(items), MAX_OUTPUTS)]},
-            "result": tuple(outputs),
-        }
+        )
 
 
 NODE_CLASS_MAPPINGS = {
