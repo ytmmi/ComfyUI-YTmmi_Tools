@@ -690,6 +690,10 @@ def resolve_effective_mode(skill_id, mode) -> str:
 
     这样「模式」在语义上始终只描述「自动」模式下的任务家族；手动指定 skills 时
     由该 skills 自身决定输出，不受模式干扰。
+
+    ⚠️ 这里只做**计算上的中和**，绝不改写控件值：前端也**不会**把「模式」控件切回
+    auto（早期版本会，导致「选了模式，下次运行又回到自动」）。用户选的模式会原样
+    随工作流保存，切回「自动」后立即重新生效。
     """
     if str(skill_id or "").strip() == AUTO_SELECTION:
         return normalize_mode(mode)
@@ -941,6 +945,7 @@ class SkillsManagerNode:
                         "此时「模式」生效（按任务家族筛选清单）；"
                         "选择具体 skills 则直接输出该 skills 的完整指导文本，"
                         "此时「模式」自动失效（不筛选、加载全部参考资料）；"
+                        "所选值与模式都会随工作流保存，不会被自动刷新改动；"
                         "点击节点上的「刷新skills」按钮可重新扫描",
                     },
                 ),
@@ -949,7 +954,8 @@ class SkillsManagerNode:
                     {
                         "default": MODE_AUTO,
                         "tooltip": "任务模式，仅在「选择skills」为「自动」时生效"
-                        "（选具体 skills 时自动失效）。"
+                        "（选具体 skills 时自动失效，但模式值本身会被保留，"
+                        "切回「自动」后立即重新生效，不会被自动刷新改动）。"
                         "auto：不筛选，列出全部 skills，h3-prompt-writing 同时提供基础与全参考两份指南；"
                         "H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va：H3 视频家族"
                         "（H3-ref2va 只用全参考指南，其余只用基础指南）；"

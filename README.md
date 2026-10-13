@@ -50,6 +50,8 @@ pip install -r requirements.txt
 
 每个 skills 是一个子目录，内含 `SKILL.md`，可选 `meta.yaml` 与 `references/`。自定义 skills 的写法见 [custom_skills/README.md](custom_skills/README.md)。
 
+> 「选择skills」与「模式」的选中值会随工作流保存，且**一旦选了具体 skills 或某个模式，自动刷新就不再改动下拉选项与选中值**（避免下次运行又回到「自动」）。需要重新扫描 skills 目录时，点节点上的「刷新skills」按钮强制重扫。
+
 > skills 内容仅作为模型提示词指导，节点不会执行其中声明的脚本、工具或网络调用。
 
 ## 项目结构

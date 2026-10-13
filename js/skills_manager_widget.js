@@ -15,9 +15,14 @@ import { app } from "../../scripts/app.js";
  *   与结尾建议」的强调；Anima 家族用「两段式 Positive/Negative」专属强调；
  *   风格类 skills 留空；切换 skills 时自动替换；
  *   若用户已改成自定义内容则一律不动，避免覆盖用户输入；
- * - 「选择skills」与「模式」联动：只有「选择skills」= 自动 时「模式」才生效。
- *   一旦选了具体 skills，自动把「模式」切回 auto（即"无筛选"），因为此时由该
- *   skills 自身决定输出，模式已无意义；切回「自动」时保留用户原来的模式选择。
+ * - 「选择skills」与「模式」的**选中值永不被前端自动改写**：只有「选择skills」=
+ *   自动 时「模式」才在后端生效（选具体 skills 时后端自行中和为 auto，见 Python 端
+ *   `resolve_effective_mode`）。前端**不再**把「模式」控件切回 auto——那样会把用户
+ *   选好的模式冲掉（历史问题：选了模式，下次运行又回到 auto）。
+ * - **已选择 skills 或模式后禁止自动刷新**：节点创建 / 工作流载入 / 运行后的自动
+ *   刷新只在「尚未做出任何明确选择」时才改动下拉选项；一旦用户选了具体 skills 或
+ *   某个模式，自动刷新只更新「附加说明」映射，绝不改动选项与选中值。需要重新扫描
+ *   skills 目录时点「刷新skills」按钮（用户主动刷新，强制生效）。
  */
 app.registerExtension({
   name: "YTmmi.SkillsManager",
@@ -134,47 +139,57 @@ app.registerExtension({
     };
 
     /**
-     * 「选择skills」与「模式」联动：
-     * - 选了具体 skills → 「模式」切回 auto（模式仅在自动下有意义）；
-     * - 切回「自动」→ 恢复用户此前选择的模式（未记录过则保持 auto）。
+     * 节点上是否已有**用户明确的选择**。
      *
-     * 同时维护「模式」控件的可编辑性提示：非自动时模式已失效，但仍保留可点开，
-     * 避免用户误以为控件损坏。
+     * 判据直接取自两个控件的当前值（因此**随工作流一起保存**，重新载入或下一次
+     * 运行时依然成立，不依赖任何内存标记）：
+     * - 「选择skills」不是「自动」（即选了具体 skills）；
+     * - 「模式」不是 `auto`（即选了具体模式）。
+     *
+     * 一旦成立，自动刷新就**不得改动下拉选项与选中值**（见 `refreshSkills`）——
+     * 这是「选了模式，下次运行又回到自动」的根因修复：此前前端会在节点创建 /
+     * 载入时把「模式」按内存里的 `__ytmmiLastMode` 重写，而该标记不落盘，
+     * 下一次运行必然丢失并把模式冲回 auto。
      */
-    const syncModeLinkage = function (node) {
+    const hasExplicitChoice = function (node) {
       const skillsWidget = node.widgets?.find((w) => w.name === "选择skills");
-      const modeWidget = node.widgets?.find((w) => w.name === "模式");
-      if (!skillsWidget || !modeWidget) return;
-
-      const isAuto = skillsWidget.value === AUTO_SELECTION;
-      if (isAuto) {
-        // 切回自动：恢复此前的模式选择
-        const remembered = node.__ytmmiLastMode;
-        const target = remembered || MODE_AUTO;
-        if (modeWidget.value !== target) {
-          modeWidget.value = target;
-          node.setDirtyCanvas?.(true);
-        }
-        return;
-      }
-
-      // 选了具体 skills：记住当前模式（供切回自动时恢复），再把模式切回 auto
-      if (modeWidget.value !== MODE_AUTO) {
-        node.__ytmmiLastMode = modeWidget.value;
-        modeWidget.value = MODE_AUTO;
-        node.setDirtyCanvas?.(true);
-      }
+      // 「模式」兼容旧键名「H3模式」（与 Python 端 kwargs 的兼容保持一致）
+      const modeWidget = node.widgets?.find(
+        (w) => w.name === "模式" || w.name === "H3模式"
+      );
+      const skills = String(skillsWidget?.value ?? "").trim();
+      const mode = String(modeWidget?.value ?? "").trim();
+      const skillsChosen = skills !== "" && skills !== AUTO_SELECTION;
+      const modeChosen = mode !== "" && mode !== MODE_AUTO;
+      return skillsChosen || modeChosen;
     };
 
-    // 保留当前选中值（若已不在新列表中则补入），避免刷新后选项丢失
-    const withCurrentValue = function (widget, names) {
+    /**
+     * 组装「选择skills」的下拉选项。
+     *
+     * 始终以「自动」开头（与 Python 端 INPUT_TYPES 的选项顺序一致），再补上后端
+     * 返回的 skills，最后补回当前选中值（若已不在新列表中）——避免刷新后：
+     * ①「自动」被挤到列表末尾；② 当前选中项丢失导致控件被前端回退成首项。
+     */
+    const buildSkillOptions = function (widget, names) {
+      const options = [AUTO_SELECTION];
+      for (const name of names || []) {
+        if (name && !options.includes(name)) options.push(name);
+      }
       const cur = widget?.value;
-      if (cur && !names.includes(cur)) return [...names, cur];
-      return names;
+      if (cur && !options.includes(cur)) options.push(cur);
+      return options;
     };
 
     /**
      * 重新扫描 skills 目录并更新下拉选项。
+     *
+     * **禁止自动刷新覆盖用户的选择**（本次修复重点）：
+     * - 自动刷新（`quiet`，节点创建 / 载入 / 运行后触发）在节点**已有明确选择**时
+     *   （选了具体 skills，或选了非 auto 的模式）**只更新「附加说明」映射，不改动
+     *   下拉选项，更不改动任何选中值**——否则「选了模式，下次运行又回到自动」；
+     * - 用户点「刷新skills」按钮属主动操作（`force`），始终强制重扫并更新选项，
+     *   此时当前选中值仍会被保留（`buildSkillOptions` 补回缺失项）。
      *
      * 全程不弹窗：
      * - 成功：按钮显示「✓ N 个 skills」并写 console.info；
@@ -184,8 +199,10 @@ app.registerExtension({
     nodeType.prototype.refreshSkills = async function (options) {
       const opts = options || {};
       const quiet = Boolean(opts.quiet); // 初始化时的静默刷新不改变按钮文字
+      const force = Boolean(opts.force); // 用户主动点击刷新：强制更新选项
       const combo = this.widgets?.find((w) => w.name === "选择skills");
       if (!combo) return;
+
       try {
         const resp = await fetch("/ytmmi/skills/list", {
           method: "POST",
@@ -215,7 +232,14 @@ app.registerExtension({
           registerDefault(autoNote);
         }
 
-        setComboOptions(combo, withCurrentValue(combo, names));
+        // 自动刷新 + 已有明确选择 → 冻结选项与选中值，只允许更新附加说明映射。
+        // 在 fetch 之后重新判定：请求是异步的，期间用户可能刚做出选择。
+        if (!force && hasExplicitChoice(this)) {
+          logInfo("已选择 skills 或模式，自动刷新已跳过（点「刷新skills」按钮可强制重扫）");
+          return;
+        }
+
+        setComboOptions(combo, buildSkillOptions(combo, names));
         // 选项更新后同步「附加说明」，使新选中 skills 的强调说明立即生效
         syncExtraNote(this);
         this.setDirtyCanvas(true);
@@ -242,15 +266,18 @@ app.registerExtension({
     nodeType.prototype.onNodeCreated = function () {
       const r = originalOnNodeCreated?.apply(this, arguments);
 
-      // 「刷新skills」按钮：不参与序列化，避免保存工作流时写入 null
+      // 「刷新skills」按钮：不参与序列化，避免保存工作流时写入 null。
+      // 用户主动点击 → force，强制重扫并更新选项（但仍保留当前选中值）。
       const btn = this.addWidget("button", "刷新skills", null, () => {
-        this.refreshSkills();
+        this.refreshSkills({ force: true });
       });
       btn.serialize = false;
       // 供 flashStatus 复用（按钮文字/颜色反馈替代弹窗）
       this.__ytmmiRefreshBtn = btn;
 
-      // 「选择skills」切换时：联动「模式」并同步「附加说明」
+      // 「选择skills」切换时：同步「附加说明」。
+      // ⚠️ 这里**不再联动改写「模式」**——模式与 skills 的取舍完全交给后端
+      // `resolve_effective_mode`（仅「自动」时生效），前端改写会把用户选的模式冲掉。
       const skillsCombo = this.widgets?.find((w) => w.name === "选择skills");
       if (skillsCombo) {
         const self = this;
@@ -259,49 +286,33 @@ app.registerExtension({
         // 会错误地捕获外层 onNodeCreated 的参数，导致原回调收到错误入参。
         skillsCombo.callback = function (...args) {
           const res = originalCallback?.apply(this, args);
-          syncModeLinkage(self);
           syncExtraNote(self);
           return res;
         };
       }
 
-      // 「模式」切换时记录用户选择（供切回「自动」时恢复）
-      const modeCombo = this.widgets?.find((w) => w.name === "模式");
-      if (modeCombo) {
-        const self = this;
-        const originalModeCallback = modeCombo.callback;
-        modeCombo.callback = function (...args) {
-          const res = originalModeCallback?.apply(this, args);
-          if (modeCombo.value && modeCombo.value !== MODE_AUTO) {
-            self.__ytmmiLastMode = modeCombo.value;
-          }
-          return res;
-        };
-      }
-
-      // 节点创建后刷新一次，与磁盘上的 skills 目录保持同步（静默：不改按钮文字）
+      // 节点创建后刷新一次，与磁盘上的 skills 目录保持同步（静默：不改按钮文字）。
+      // 已有明确选择时该刷新会自动跳过，避免改动选中值。
       setTimeout(() => this.refreshSkills({ quiet: true }), 300);
-      // 多次时机同步「模式」联动与「附加说明」，兼容不同前端的控件值恢复时机
-      syncModeLinkage(this);
+      // 多次时机同步「附加说明」，兼容不同前端的控件值恢复时机。
+      // ⚠️ 绝不同步/改写「模式」控件值。
       syncExtraNote(this);
       setTimeout(() => {
-        syncModeLinkage(this);
         syncExtraNote(this);
       }, 100);
       setTimeout(() => {
-        syncModeLinkage(this);
         syncExtraNote(this);
       }, 500);
 
       return r;
     };
 
-    // 加载工作流后控件值按保存内容恢复，需再次同步
+    // 加载工作流后控件值按保存内容恢复，需再次同步「附加说明」。
+    // ⚠️ 不得改写「模式」：控件值已由工作流保存内容恢复，改写即丢失用户选择。
     const originalOnConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function () {
       const r = originalOnConfigure?.apply(this, arguments);
       setTimeout(() => {
-        syncModeLinkage(this);
         syncExtraNote(this);
       }, 0);
       return r;
