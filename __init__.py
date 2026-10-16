@@ -19,6 +19,11 @@ try:
         NODE_CLASS_MAPPINGS as CUSTOM_LLM_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as CUSTOM_LLM_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.text.text_generate_qwen21_prompt_node import (
+        TextGenerateQwen21PromptNode,
+        NODE_CLASS_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_DISPLAY_NAME_MAPPINGS,
+    )
     from .node.image.save_jpg_node import (
         SaveJPGNode,
         NODE_CLASS_MAPPINGS as JPG_NODE_CLASS_MAPPINGS,
@@ -140,6 +145,11 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as CUSTOM_LLM_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as CUSTOM_LLM_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.text.text_generate_qwen21_prompt_node import (
+        TextGenerateQwen21PromptNode,
+        NODE_CLASS_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_DISPLAY_NAME_MAPPINGS,
+    )
     from node.image.save_jpg_node import (
         SaveJPGNode,
         NODE_CLASS_MAPPINGS as JPG_NODE_CLASS_MAPPINGS,
@@ -249,6 +259,7 @@ NODE_CLASS_MAPPINGS = {
     **PIXEL_NODE_CLASS_MAPPINGS,
     **JSON_NODE_CLASS_MAPPINGS,
     **CUSTOM_LLM_NODE_CLASS_MAPPINGS,
+    **TEXT_GENERATE_QWEN21_NODE_CLASS_MAPPINGS,
     **JPG_NODE_CLASS_MAPPINGS,
     **WATERMARK_NODE_CLASS_MAPPINGS,
     **SOLID_COLOR_NODE_CLASS_MAPPINGS,
@@ -276,6 +287,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **PIXEL_NODE_DISPLAY_NAME_MAPPINGS,
     **JSON_NODE_DISPLAY_NAME_MAPPINGS,
     **CUSTOM_LLM_NODE_DISPLAY_NAME_MAPPINGS,
+    **TEXT_GENERATE_QWEN21_NODE_DISPLAY_NAME_MAPPINGS,
     **JPG_NODE_DISPLAY_NAME_MAPPINGS,
     **WATERMARK_NODE_DISPLAY_NAME_MAPPINGS,
     **SOLID_COLOR_NODE_DISPLAY_NAME_MAPPINGS,
@@ -305,6 +317,7 @@ __all__ = [
     "ImageToPngNode",
     "SaveJsonFileNode",
     "CustomLLMNode",
+    "TextGenerateQwen21PromptNode",
     "SaveJPGNode",
     "PixelSizeToRatioNode",
     "TextWatermarkNode",
