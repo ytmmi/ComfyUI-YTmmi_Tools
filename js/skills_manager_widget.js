@@ -13,6 +13,7 @@ import { app } from "../../scripts/app.js";
  * - 「附加说明」按所选 skills 套用对应的默认强调说明（后端按 skills 返回 extra_note）：
  *   产出单一交付物的提示词类 skills（含散文与 JSON）用「只输出最终内容、不要开头说明
  *   与结尾建议」的强调；Anima 家族用「两段式 Positive/Negative」专属强调；
+ *   MOSS-Image 家族（moss 模式）与 H3/Qwen 一样共用「只输出最终内容」强调；
  *   风格类 skills 留空；切换 skills 时自动替换；
  *   若用户已改成自定义内容则一律不动，避免覆盖用户输入；
  * - 「选择skills」与「模式」的**选中值永不被前端自动改写**：只有「选择skills」=

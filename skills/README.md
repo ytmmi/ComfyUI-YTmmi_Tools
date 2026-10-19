@@ -6,6 +6,16 @@ This directory contains the skills bundled with [MiniMax H3](../README.md): **1 
 
 The skills are actively maintained and still evolving. The 8 style skills ship with bilingual `SKILL.md`/`SKILL.cn.md`; `h3-prompt-writing` is currently English-only.
 
+## Additional built-in families
+
+Besides the MiniMax H3 family documented below, this directory also ships:
+
+- `qwen-image-t2i-prompt` / `qwen-image-edit-prompt` — Qwen-Image 2.1 prompt rewriting (`qwen-image-*` mode);
+- `anima-*` — 12 Anima anime-illustration prompt skills (`Anima` mode);
+- [`moss-image-prompt-enhancer`](moss-image-prompt-enhancer/SKILL.md) — MOSS-Image caption / pixel Layout prompt enhancer (`moss` mode). It expands an image idea into a MOSS-Image caption (`{"caption":"..."}`) or a pixel-level Layout draft, then compiles the local JSON draft into a ready-to-paste prompt with the bundled `scripts/compile_prompt.py`. It does not generate images and calls no external API. See [`references/layout.md`](moss-image-prompt-enhancer/references/layout.md) for the Layout schema.
+
+All of these are prompt guidance only: the skills manager node never executes the scripts they declare.
+
 ## Installation
 
 Install skills with the [skills CLI](https://github.com/vercel-labs/skills):

@@ -44,12 +44,15 @@ pip install -r requirements.txt
 
 「skills管理器」读取 `skills/`（内置）与 `custom_skills/`（自定义）目录，输出的指导文本可接入「自定义LLM」。skills 仅作为提示词指导，节点不会执行其中声明的脚本、工具或网络调用。自定义写法见 [custom_skills/README.md](custom_skills/README.md)。
 
+「模式」用于按任务家族筛选「自动」清单：`H3-*`（MiniMax H3 视频）、`qwen-image-*`（Qwen-Image 2.1 图像提示词）、`Anima`（二次元插画）、`moss`（MOSS-Image 图像提示词增强：caption / 像素级 Layout 两种交付物，随附本地编译脚本 `scripts/compile_prompt.py`）。
+
 ## 致谢
 
 - [ComfyUI-YCNodes-MiniMax-H3](https://github.com/yichengup/ComfyUI-YCNodes-MiniMax-H3) — H3 低噪细节精修移植来源
 - [ComfyUI_Qwen_H3_Prompt](https://github.com/chflame163/ComfyUI_Qwen_H3_Prompt) — skills 管理方式参考
 - [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) — 内置 H3 skills 来源
 - [Anima 模型卡](https://huggingface.co/circlestone-labs/Anima) / [ComfyUI 官方教程](https://docs.comfy.org/tutorials/image/anima/anima) — Anima skills 依据
+- [moss-image-prompt-enhancer](skills/moss-image-prompt-enhancer/SKILL.md) — MOSS-Image caption / 像素级 Layout 提示词增强 skills 来源
 
 ## 许可证
 

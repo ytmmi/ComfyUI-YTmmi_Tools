@@ -21,7 +21,9 @@ skills 目录约定（与上游 ComfyUI_Qwen_H3_Prompt 保持一致）：
 - H3-*：MiniMax H3 视频（排除 Qwen-Image 与 Anima 家族）；
 - qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写（各只列本家族 1 个）；
 - Anima：Anima（CircleStone Labs × Comfy Org）二次元插画提示词家族，
-  清单只列 id 以 anima 开头的 skills（12 个 Anima skills 同属该家族）。
+  清单只列 id 以 anima 开头的 skills（12 个 Anima skills 同属该家族）；
+- moss：MOSS-Image 图像提示词增强家族（moss-image-prompt-enhancer：
+  caption / 像素级 Layout 两种交付物 + 本地编译脚本，不生成图片）。
 
 输出：
 - skills：所选 skills 的完整指导文本（含参考资料），可直接接入自定义LLM的 skills 接口；
@@ -64,7 +66,8 @@ DEFAULT_SKILL_ID = "h3-prompt-writing"
 # - H3-*：H3 视频任务家族（h3-prompt-writing + 8 个风格类 skills），
 #   且按具体生成模式只提供对应的一份指南（ref2va 用全参考，其余用基础）；
 # - qwen-image-*：Qwen-Image 2.1 图像提示词改写家族（文生图 / 图像编辑）；
-# - Anima：Anima 二次元插画任务家族（12 个 anima-* skills）。
+# - Anima：Anima 二次元插画任务家族（12 个 anima-* skills）；
+# - moss：MOSS-Image 图像提示词增强家族（caption / 像素 Layout 两种交付物）。
 #
 # 解析时同时兼容带前缀与不带前缀的旧写法（旧工作流仍可加载）。
 MODE_PREFIX = "H3-"
@@ -72,6 +75,7 @@ MODE_AUTO = "auto"
 MODE_QWEN_T2I = "qwen-image-t2i"
 MODE_QWEN_EDIT = "qwen-image-edit"
 MODE_ANIMA = "Anima"
+MODE_MOSS = "moss"
 MODE_OPTIONS = (
     MODE_AUTO,
     "H3-t2va",
@@ -82,6 +86,7 @@ MODE_OPTIONS = (
     MODE_QWEN_T2I,
     MODE_QWEN_EDIT,
     MODE_ANIMA,
+    MODE_MOSS,
 )
 
 # Qwen-Image 提示词改写类 skills 的 id 标记（用于区分任务家族）
@@ -90,6 +95,10 @@ QWEN_IMAGE_MARKERS = ("qwen-image",)
 # Anima 二次元插画类 skills 的 id 前缀（anima-prompt-format 等），
 # 与 normalize_mode 的 anima- 前缀剥离保持一致（见 _canonical_id）。
 ANIMA_SKILL_MARKERS = ("anima",)
+
+# MOSS-Image 图像提示词增强类 skills 的 id 前缀（moss-image-prompt-enhancer 等），
+# 与 normalize_mode 的 moss- 前缀归并保持一致。
+MOSS_SKILL_MARKERS = ("moss",)
 
 # Anima 家族 skills 的固定「附加说明」：该家族统一采用「默认只出正面提示词」的输出
 # 契约，负面提示词只在用户明确要求时才追加，因此不能沿用只输出单一交付物的通用强调。
@@ -538,6 +547,22 @@ def is_anima_skill(skill_id) -> bool:
     )
 
 
+def is_moss_skill(skill_id) -> bool:
+    """判断某个 skills 是否属于 MOSS-Image 图像提示词增强家族（id 以 moss 开头）。
+
+    与 normalize_mode 的 moss- 前缀归并保持一致：`moss` 模式只列这一家族；
+    其他模式（H3-* / qwen-image-* / Anima）排除这一家族。判定只用前缀/段内匹配，
+    不用裸子串，避免把含 "moss" 的无关 id 误判。
+    """
+    value = str(skill_id or "").strip().casefold()
+    if not value:
+        return False
+    return any(
+        value == marker or value.startswith(f"{marker}-") or f"-{marker}-" in value
+        for marker in MOSS_SKILL_MARKERS
+    )
+
+
 def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> str:
     """「附加说明」的默认值。
 
@@ -590,16 +615,19 @@ def normalize_mode(mode: str) -> str:
     - `H3-t2va` → `t2va`（H3 生成模式：t2va/i2va/fl2va/l2va/ref2va）
     - `qwen-image-t2i` / `qwen-image-edit` → 原样保留
     - `Anima` / `anima-text2image` → `Anima`（家族模式，大小写与 anima- 子模式均兼容）
+    - `moss` / `moss-image-prompt-enhancer` → `moss`（MOSS-Image 家族，moss- 子模式均归并）
     - 空 → `auto`
 
-    兼容带前缀（H3-t2va）、不带前缀（t2va）与带家族前缀（anima-text2image）
-    等多种写法，旧工作流保存的值仍可用。
+    兼容带前缀（H3-t2va）、不带前缀（t2va）与带家族前缀（anima-text2image、
+    moss-image-prompt-enhancer）等多种写法，旧工作流保存的值仍可用。
     """
     value = str(mode or "").strip().casefold()
     if value in (MODE_QWEN_T2I, MODE_QWEN_EDIT):
         return value
     if value == MODE_ANIMA.casefold() or value.startswith(f"{MODE_ANIMA.casefold()}-"):
         return MODE_ANIMA
+    if value == MODE_MOSS or value.startswith(f"{MODE_MOSS}-"):
+        return MODE_MOSS
     if value.startswith(MODE_PREFIX.casefold()):
         value = value[len(MODE_PREFIX):]
     return value or MODE_AUTO
@@ -615,6 +643,11 @@ def is_anima_mode(mode: str) -> bool:
     return normalize_mode(mode) == MODE_ANIMA
 
 
+def is_moss_mode(mode: str) -> bool:
+    """判断模式是否属于 MOSS-Image 图像提示词增强任务家族。"""
+    return normalize_mode(mode) == MODE_MOSS
+
+
 def is_h3_mode(mode: str) -> bool:
     """判断模式是否属于 H3 视频任务家族（含 auto 之外的 H3-* 生成模式）。"""
     return normalize_mode(mode) in {"t2va", "i2va", "fl2va", "l2va", "ref2va"}
@@ -628,7 +661,8 @@ def filter_registry_for_mode(registry, mode: str):
 
     - qwen-image-t2i / qwen-image-edit：仅该家族对应 skills；
     - Anima：仅 Anima 家族（id 以 anima 开头的 12 个 skills）；
-    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image 与 Anima）；
+    - moss：仅 MOSS-Image 家族（id 以 moss 开头的 skills）；
+    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image、Anima 与 MOSS）；
     - auto：不筛选，返回全部。
     """
     normalized = normalize_mode(mode)
@@ -637,13 +671,16 @@ def filter_registry_for_mode(registry, mode: str):
         return tuple(spec for spec in registry if spec.id in allow)
     if is_anima_mode(normalized):
         return tuple(spec for spec in registry if is_anima_skill(spec.id))
+    if is_moss_mode(normalized):
+        return tuple(spec for spec in registry if is_moss_skill(spec.id))
     if is_h3_mode(normalized):
-        # H3 家族：排除 Qwen-Image 与 Anima 两个图像提示词家族
+        # H3 家族：排除 Qwen-Image、Anima 与 MOSS 三个图像提示词家族
         return tuple(
             spec
             for spec in registry
             if not any(m in spec.id.casefold() for m in QWEN_IMAGE_MARKERS)
             and not is_anima_skill(spec.id)
+            and not is_moss_skill(spec.id)
         )
     return tuple(registry)
 
@@ -659,7 +696,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
     if is_anima_mode(normalized):
         return (
             "当前模式：Anima（二次元插画）——本清单仅列出 Anima 家族的 skills，"
-            "请只在本家族内选择；不要路由到 H3 视频或 Qwen-Image 家族的写法。"
+            "请只在本家族内选择；不要路由到 H3 视频、Qwen-Image 或 MOSS-Image 家族的写法。"
             "动手前请**先读取共同基准** `anima-prompt-format/references/anima-prompt-baseline.md`"
             "（其中的「高杠杆规则」是全家族通用硬规则：主画师必选、权重用大数且加权标签总数 ≤4、"
             "取景对抗自然语言漂移、Hybrid 三层混合、动作与天气要有可见后果），"
@@ -668,15 +705,34 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "或用户点名 pastel / neon / sepia / duotone / 电影感调色）时，"
             "另读 `anima-color-harmony`（配色骨架、明度×饱和度结构、主体-背景分色、光的颜色）。"
         )
+    if is_moss_mode(normalized):
+        return (
+            "当前模式：MOSS-Image 图像提示词增强——本清单仅列出 MOSS-Image 家族的 skills，"
+            "请只在本家族内选择；不要路由到 H3 视频、Qwen-Image 或 Anima 家族的写法。"
+            "该家族的产出是**可直接粘贴的 MOSS-Image 正向提示词**，有两种交付物："
+            "（1）Caption——写 UTF-8 JSON `{\"caption\":\"...\"}`，正文是连贯散文，"
+            "空间关系用文字表达，可见文字逐字保留原语言；"
+            "（2）Layout——需要精确文字排版 / 海报 / 多面板 / 受控物体关系时使用，"
+            "**动手前必须先读 `moss-image-prompt-enhancer/references/layout.md`**，"
+            "草稿用 `summary` + 扁平 `items`（每项 label/caption/bbox）+ `width`/`height`"
+            "（必须是 16 的正整数倍）+ `bbox_coord_space=\"abs\"` + `bbox_format=\"xyxy\"`，"
+            "bbox 用画布左上角起算的绝对像素，不要手动居中或量化，"
+            "再用随附脚本 `scripts/compile_prompt.py draft.json --output prompt.txt` 编译，"
+            "把编译结果作为最终交付（不要手写居中 JSON 绕过校验）。"
+            "注意：本节点只读取文本指导、**不执行任何脚本**；若下游运行环境没有 shell，"
+            "请按 `references/layout.md` 的换算规则自行换算为 `abs_centralized` / `yxyx` "
+            "整数单行 JSON，换算方式必须与脚本一致。"
+            "该家族不生成图片、不调用外部 API。"
+        )
     if is_qwen_image_mode(normalized):
         return (
             "当前模式：Qwen-Image 提示词改写——本清单仅列出该家族的 skills，"
-            "请只在本家族内选择；不要路由到 H3 视频或 Anima 家族的写法。"
+            "请只在本家族内选择；不要路由到 H3 视频、Anima 或 MOSS-Image 家族的写法。"
         )
     if is_h3_mode(normalized):
         return (
-            "当前模式：MiniMax H3 视频——本清单已排除 Qwen-Image 与 Anima 图像提示词"
-            "家族的 skills；图像提示词需求请改用对应的图像家族模式。"
+            "当前模式：MiniMax H3 视频——本清单已排除 Qwen-Image、Anima 与 MOSS-Image"
+            "图像提示词家族的 skills；图像提示词需求请改用对应的图像家族模式。"
         )
     return ""
 
@@ -927,7 +983,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit / Anima（非 auto 时按任务家族筛选自动清单）'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit / Anima / moss（非 auto 时按任务家族筛选自动清单）'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -961,7 +1017,9 @@ class SkillsManagerNode:
                         "（H3-ref2va 只用全参考指南，其余只用基础指南）；"
                         "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族；"
                         "Anima：Anima（CircleStone Labs × Comfy Org）二次元插画家族"
-                        "（只列 anima-* 的 12 个 skills）",
+                        "（只列 anima-* 的 12 个 skills）；"
+                        "moss：MOSS-Image 图像提示词增强家族"
+                        "（只列 moss-* 的 skills，产出 caption 或像素 Layout 提示词）",
                     },
                 ),
                 "包含参考文件": (
@@ -1015,6 +1073,13 @@ class SkillsManagerNode:
         "颜色搭配",
         "color harmony",
         "palette",
+        "moss",
+        "MOSS-Image",
+        "图像提示词增强",
+        "caption",
+        "layout",
+        "版面",
+        "bbox",
     ]
 
     @classmethod
@@ -1088,12 +1153,15 @@ __all__ = [
     "MODE_QWEN_T2I",
     "MODE_QWEN_EDIT",
     "MODE_ANIMA",
+    "MODE_MOSS",
     "QWEN_IMAGE_MARKERS",
     "ANIMA_SKILL_MARKERS",
+    "MOSS_SKILL_MARKERS",
     "MODE_SKILL_ALLOWLIST",
     "normalize_mode",
     "is_qwen_image_mode",
     "is_anima_mode",
+    "is_moss_mode",
     "is_h3_mode",
     "filter_registry_for_mode",
     "mode_family_hint",
@@ -1103,6 +1171,7 @@ __all__ = [
     "PROMPT_SKILL_MARKERS",
     "is_prompt_skill",
     "is_anima_skill",
+    "is_moss_skill",
     "default_extra_note",
     "MAX_CHARS_DEFAULT",
     "DEFAULT_SKILL_ID",
