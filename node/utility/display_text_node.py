@@ -9,9 +9,10 @@
 
 输入使用通配类型 "*"，允许连接任意类型的输出端口。
 同时连接 2 个及以上输入口时，展示内容按输入口序号（0 起始）分隔标注，
-例如：
+所有输入口使用同一种分隔格式，例如：
 
-【输入0】
+────── 输入0 ──────
+
 内容一
 
 ────── 输入1 ──────
@@ -96,12 +97,10 @@ class DisplayTextNode:
         elif len(parts) == 1:
             display_text = parts[0][1]
         else:
-            blocks = []
-            for idx, text in parts:
-                if idx == 0:
-                    blocks.append(f"【输入{idx}】\n{text}")
-                else:
-                    blocks.append(f"────── 输入{idx} ──────\n\n{text}")
+            # 多输入统一用同一种分隔格式（输入0 不再使用「【输入0】」）
+            blocks = [
+                f"────── 输入{idx} ──────\n\n{text}" for idx, text in parts
+            ]
             display_text = "\n\n".join(blocks)
 
         # 把展示文本写回本次运行的工作流快照，使其随工作流数据一起保留

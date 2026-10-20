@@ -71,10 +71,11 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 
 输出：
 - 输出文本：模型返回的文本字符串；
-- 简略上下文：本次运行轨迹的纯文本记录（步数、输入的 skills 名称、实际读取的
-  skills、每一步的思考与动作、最终输出，以及接口返回 usage 时的「用量统计」：
-  输入/输出/合计 token、接口耗时、输出速度、工具调用数）。该文本**完全由节点代码
-  拼装，不调用模型做任何总结**，便于事后核对「跑了几步、读了哪些 skills、最终产出了什么」。
+- 简略上下文：本次运行轨迹的纯文本记录。接口返回 usage 时「用量统计」段
+  **固定放在最上方**（标题之后、轨迹之前），含输入/输出/合计 token、接口耗时、
+  输出速度、工具调用数；随后依次是步数、输入的 skills 名称、实际读取的 skills、
+  每一步的思考与动作、最终输出。该文本**完全由节点代码拼装，不调用模型做任何
+  总结**，便于事后核对「跑了几步、读了哪些 skills、最终产出了什么」。
 """
 
 import base64
@@ -252,6 +253,9 @@ BUILTIN_TOOL_NAMES = tuple(item["function"]["name"] for item in BUILTIN_TOOLS)
 # skills、每一步的思考与动作、最终输出。**不做任何模型总结**，因此内容与请求/响应
 # 一一对应，可直接用于事后核对。
 CONTEXT_TITLE = "# 简略上下文（本次运行，由节点代码拼装，未经模型总结）"
+
+# 「用量统计」段固定渲染在标题之后、轨迹之前（最上方），接口返回 usage 时才输出。
+USAGE_SECTION_TITLE = "## 用量统计"
 
 # 「自动」清单中的 skills 行：`- <id>（<显示名>）: <描述>`
 _MANIFEST_SKILL_RE = re.compile(
@@ -497,6 +501,33 @@ class RunTrace:
             totals["elapsed"] += float(step.elapsed or 0.0)
         return totals
 
+    def usage_lines(self) -> list:
+        """「用量统计」段的文本行（接口未返回 usage 时返回空列表）。
+
+        该段固定渲染在「简略上下文」最上方（标题之后、轨迹之前），便于先看到
+        token 与耗时；接口完全没返回 usage 时不输出，避免在纯文本里堆无意义的 0。
+        """
+        totals = self.usage_totals()
+        if not (totals["total_tokens"] or totals["elapsed"]):
+            return []
+        completion = totals["completion_tokens"]
+        elapsed = totals["elapsed"]
+        lines = [USAGE_SECTION_TITLE, ""]
+        lines.append(
+            f"- token：输入 {totals['prompt_tokens']:,} / "
+            f"输出 {completion:,} / 合计 {totals['total_tokens']:,}"
+        )
+        lines.append(f"- 接口耗时：{elapsed:.2f} 秒（{len(self.steps)} 步合计）")
+        if completion > 0 and elapsed > 0:
+            lines.append(f"- 输出速度：{completion / elapsed:.2f} token/秒")
+        tool_steps = [step for step in self.steps if step.tool_calls]
+        if tool_steps:
+            lines.append(
+                f"- 工具调用：{sum(len(s.tool_calls) for s in tool_steps)} 个"
+                f"（涉及 {len(tool_steps)} 步）"
+            )
+        return lines
+
     def skill_usage(self) -> list:
         """按 skills id 汇总读取次数：[(id, 次数), ...]（按首次出现顺序）。"""
         counts = {}
@@ -507,6 +538,13 @@ class RunTrace:
     def render(self) -> str:
         """渲染为纯文本（确定性拼装，全程无模型参与）。"""
         lines = [CONTEXT_TITLE, ""]
+
+        # 用量统计置顶：接口返回 usage 时放在标题之后、轨迹之前
+        usage_lines = self.usage_lines()
+        if usage_lines:
+            lines.extend(usage_lines)
+            lines.append("")
+
         lines.append(f"- 模型：{self.model or '（未指定）'}")
         lines.append(f"- 模式：{self.mode}")
         lines.append(f"- 步数：{len(self.steps)} 步（每步 = 一次接口请求）")
@@ -558,27 +596,6 @@ class RunTrace:
         lines.append("")
         lines.append(str(self.final_text) if str(self.final_text).strip() else "（空）")
 
-        # 用量统计（接口返回 usage 时才输出，避免在纯文本里堆无意义的 0）
-        totals = self.usage_totals()
-        if totals["total_tokens"] or totals["elapsed"]:
-            completion = totals["completion_tokens"]
-            elapsed = totals["elapsed"]
-            lines.append("")
-            lines.append("## 用量统计")
-            lines.append("")
-            lines.append(
-                f"- token：输入 {totals['prompt_tokens']:,} / "
-                f"输出 {completion:,} / 合计 {totals['total_tokens']:,}"
-            )
-            lines.append(f"- 接口耗时：{elapsed:.2f} 秒（{len(self.steps)} 步合计）")
-            if completion > 0 and elapsed > 0:
-                lines.append(f"- 输出速度：{completion / elapsed:.2f} token/秒")
-            tool_steps = [step for step in self.steps if step.tool_calls]
-            if tool_steps:
-                lines.append(
-                    f"- 工具调用：{sum(len(s.tool_calls) for s in tool_steps)} 个"
-                    f"（涉及 {len(tool_steps)} 步）"
-                )
         return "\n".join(lines)
 
 
@@ -722,7 +739,7 @@ class CustomLLMNode:
     """自定义在线 LLM（OpenAI 兼容接口）。"""
 
     CATEGORY = "YTmmi/text"
-    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本，自动清单走多轮按需读取）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型，可等比缩放并设置细节档位）、温度/最大token/top_p/种子（含官方生成后控制）、完整请求参数（输出格式/频率惩罚/存在惩罚/候选数量/top_k/推理强度/超时/空输出重试）、多轮会话（默认关闭，开启后节点后台自动维护上下文，可设最大会话轮数）、内置工具（后台声明 read_skill 并自动执行，无需人工配置）；输出文本之外另输出「简略上下文」（步数/输入skills名称/调用的skills/每步思考/最终输出/用量统计，纯代码拼装不调用模型总结）'
+    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本，自动清单走多轮按需读取）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型，可等比缩放并设置细节档位）、温度/最大token/top_p/种子（含官方生成后控制）、完整请求参数（输出格式/频率惩罚/存在惩罚/候选数量/top_k/推理强度/超时/空输出重试）、多轮会话（默认关闭，开启后节点后台自动维护上下文，可设最大会话轮数）、内置工具（后台声明 read_skill 并自动执行，无需人工配置）；输出文本之外另输出「简略上下文」（用量统计置顶/步数/输入skills名称/调用的skills/每步思考/最终输出，纯代码拼装不调用模型总结）'
 
     @classmethod
     def INPUT_TYPES(cls):
