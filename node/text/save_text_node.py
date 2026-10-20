@@ -30,10 +30,10 @@ except Exception:  # pragma: no cover - optional dependency
 # 保存格式：扩展名即格式名，txt 为默认
 FORMAT_OPTIONS = ["txt", "md", "csv", "json"]
 DEFAULT_FORMAT = "txt"
-# 命名方式：关闭（默认）= 文件前缀 + 自动序号；打开 = 使用「文件名」作为完整文件名
+# 命名方式：关闭（默认）= 控件值当「文件前缀」+ 自动序号；打开 = 当完整「文件名」
 DEFAULT_USE_FILENAME = False
-DEFAULT_PREFIX = "text"
-DEFAULT_FILENAME = "text"
+# 「文件前缀/文件名」合并成一个控件，两种模式共用同一个值
+DEFAULT_NAME = "text"
 # Windows 非法文件名字符（不含中文等 Unicode 字符，故中文文件名会被原样保留）
 _ILLEGAL_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
@@ -190,15 +190,17 @@ def _next_counter(folder: Path, prefix: str) -> int:
 class SaveTextNode:
     """把任意类型的输入保存为文本文件，输出文件路径。
 
-    「使用文件名」开关关闭（默认）时用「文件前缀」+ 自动序号命名，序号按官方
-    ``SaveImage`` 的规则扫描输出目录后递增，连续运行不会覆盖历史文件；打开时直接
-    用「文件名」作为完整文件名（同名文件会被覆盖，这正是该模式的用途）。
+    「使用文件名」开关关闭（默认）时，把「文件前缀/文件名」控件的值当作前缀，拼上
+    自动序号命名；序号按官方 ``SaveImage`` 的规则扫描输出目录后递增，连续运行不会
+    覆盖历史文件。打开时把同一个控件的值当作完整文件名（同名文件会被覆盖，这正是
+    该模式的用途）。两种模式共用一个控件值，不再分开设置前缀与文件名。
     """
 
     CATEGORY = "YTmmi/text"
     DESCRIPTION = (
         '保存文本：把任意类型的输入保存为 txt / md / csv / json 文本文件，'
-        '可用「文件前缀」+ 自动序号或指定「文件名」，输出文件路径'
+        '由「文件前缀/文件名」控件配合「使用文件名」开关决定用前缀加自动序号还是固定文件名，'
+        '输出文件路径'
     )
 
     @classmethod
@@ -214,16 +216,16 @@ class SaveTextNode:
                         # label_on / label_off 让开关直接显示当前生效的是哪一种命名
                         "label_on": "文件名",
                         "label_off": "文件前缀",
-                        "tooltip": "关闭：用「文件前缀」+ 自动序号命名；打开：用「文件名」作为完整文件名",
+                        "tooltip": "关闭：下方名称作为「文件前缀」并自动追加序号；打开：作为完整「文件名」（同名文件会被覆盖）",
                     },
                 ),
-                "文件前缀": (
+                # 前缀与文件名合并成一个控件，由上面的开关决定当前语义
+                "文件前缀/文件名": (
                     "STRING",
-                    {"default": DEFAULT_PREFIX, "tooltip": "关闭「使用文件名」时生效，会自动追加序号"},
-                ),
-                "文件名": (
-                    "STRING",
-                    {"default": DEFAULT_FILENAME, "tooltip": "打开「使用文件名」时生效，同名文件会被覆盖"},
+                    {
+                        "default": DEFAULT_NAME,
+                        "tooltip": "「使用文件名」关闭时作为前缀（自动追加序号）；打开时作为完整文件名",
+                    },
                 ),
                 "格式": (FORMAT_OPTIONS, {"default": DEFAULT_FORMAT}),
             },
@@ -252,8 +254,8 @@ class SaveTextNode:
     def save(self, **kwargs):
         content = kwargs.get("文本")
         use_filename = self._normalize_bool(kwargs.get("使用文件名"))
-        filename_prefix = kwargs.get("文件前缀", DEFAULT_PREFIX)
-        filename = kwargs.get("文件名", DEFAULT_FILENAME)
+        # 前缀与文件名共用同一个控件值，由开关决定解释方式
+        name_value = kwargs.get("文件前缀/文件名", DEFAULT_NAME)
         text_format = self._normalize_format(kwargs.get("格式"))
         subfolder = kwargs.get("子文件夹", "")
         output_dir = kwargs.get("output_dir")
@@ -270,7 +272,7 @@ class SaveTextNode:
 
         if use_filename:
             # 指定文件名模式：已带同格式后缀时不重复追加
-            name = _sanitize_filename(filename, DEFAULT_FILENAME)
+            name = _sanitize_filename(name_value, DEFAULT_NAME)
             if name.lower().endswith(f".{text_format}"):
                 filename_base = name[: -(len(text_format) + 1)]
                 filename = name
@@ -279,7 +281,7 @@ class SaveTextNode:
                 filename = f"{name}.{text_format}"
         else:
             # 前缀模式：与官方 SaveImage 一致，先扫描输出目录取「已有最大序号 + 1」
-            prefix = _sanitize_filename(filename_prefix, DEFAULT_PREFIX)
+            prefix = _sanitize_filename(name_value, DEFAULT_NAME)
             filename_base = f"{prefix}_{_next_counter(output_dir_path, prefix):05d}"
             filename = f"{filename_base}.{text_format}"
 
@@ -335,5 +337,6 @@ __all__ = [
     "NODE_DISPLAY_NAME_MAPPINGS",
     "FORMAT_OPTIONS",
     "DEFAULT_FORMAT",
+    "DEFAULT_NAME",
     "SaveTextNode",
 ]
