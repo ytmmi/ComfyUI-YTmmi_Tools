@@ -9,10 +9,10 @@ try:
         NODE_CLASS_MAPPINGS as PIXEL_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as PIXEL_NODE_DISPLAY_NAME_MAPPINGS,
     )
-    from .node.text.save_json_file_node import (
-        SaveJsonFileNode,
-        NODE_CLASS_MAPPINGS as JSON_NODE_CLASS_MAPPINGS,
-        NODE_DISPLAY_NAME_MAPPINGS as JSON_NODE_DISPLAY_NAME_MAPPINGS,
+    from .node.text.save_text_node import (
+        SaveTextNode,
+        NODE_CLASS_MAPPINGS as SAVE_TEXT_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SAVE_TEXT_NODE_DISPLAY_NAME_MAPPINGS,
     )
     from .node.text.custom_llm_node import (
         CustomLLMNode,
@@ -135,10 +135,10 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as PIXEL_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as PIXEL_NODE_DISPLAY_NAME_MAPPINGS,
     )
-    from node.text.save_json_file_node import (
-        SaveJsonFileNode,
-        NODE_CLASS_MAPPINGS as JSON_NODE_CLASS_MAPPINGS,
-        NODE_DISPLAY_NAME_MAPPINGS as JSON_NODE_DISPLAY_NAME_MAPPINGS,
+    from node.text.save_text_node import (
+        SaveTextNode,
+        NODE_CLASS_MAPPINGS as SAVE_TEXT_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SAVE_TEXT_NODE_DISPLAY_NAME_MAPPINGS,
     )
     from node.text.custom_llm_node import (
         CustomLLMNode,
@@ -257,7 +257,7 @@ WEB_DIRECTORY = "./js"
 NODE_CLASS_MAPPINGS = {
     **IMAGE_NODE_CLASS_MAPPINGS,
     **PIXEL_NODE_CLASS_MAPPINGS,
-    **JSON_NODE_CLASS_MAPPINGS,
+    **SAVE_TEXT_NODE_CLASS_MAPPINGS,
     **CUSTOM_LLM_NODE_CLASS_MAPPINGS,
     **TEXT_GENERATE_QWEN21_NODE_CLASS_MAPPINGS,
     **SAVE_IMAGE_NODE_CLASS_MAPPINGS,
@@ -285,7 +285,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     **IMAGE_NODE_DISPLAY_NAME_MAPPINGS,
     **PIXEL_NODE_DISPLAY_NAME_MAPPINGS,
-    **JSON_NODE_DISPLAY_NAME_MAPPINGS,
+    **SAVE_TEXT_NODE_DISPLAY_NAME_MAPPINGS,
     **CUSTOM_LLM_NODE_DISPLAY_NAME_MAPPINGS,
     **TEXT_GENERATE_QWEN21_NODE_DISPLAY_NAME_MAPPINGS,
     **SAVE_IMAGE_NODE_DISPLAY_NAME_MAPPINGS,
@@ -315,7 +315,7 @@ __all__ = [
     "NODE_DISPLAY_NAME_MAPPINGS",
     "WEB_DIRECTORY",
     "ImageToPngNode",
-    "SaveJsonFileNode",
+    "SaveTextNode",
     "CustomLLMNode",
     "TextGenerateQwen21PromptNode",
     "SaveImageNode",
