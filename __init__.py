@@ -24,10 +24,10 @@ try:
         NODE_CLASS_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_DISPLAY_NAME_MAPPINGS,
     )
-    from .node.image.save_jpg_node import (
-        SaveJPGNode,
-        NODE_CLASS_MAPPINGS as JPG_NODE_CLASS_MAPPINGS,
-        NODE_DISPLAY_NAME_MAPPINGS as JPG_NODE_DISPLAY_NAME_MAPPINGS,
+    from .node.image.save_image_node import (
+        SaveImageNode,
+        NODE_CLASS_MAPPINGS as SAVE_IMAGE_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SAVE_IMAGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
     from .node.image.text_watermark_node import (
         TextWatermarkNode,
@@ -150,10 +150,10 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as TEXT_GENERATE_QWEN21_NODE_DISPLAY_NAME_MAPPINGS,
     )
-    from node.image.save_jpg_node import (
-        SaveJPGNode,
-        NODE_CLASS_MAPPINGS as JPG_NODE_CLASS_MAPPINGS,
-        NODE_DISPLAY_NAME_MAPPINGS as JPG_NODE_DISPLAY_NAME_MAPPINGS,
+    from node.image.save_image_node import (
+        SaveImageNode,
+        NODE_CLASS_MAPPINGS as SAVE_IMAGE_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as SAVE_IMAGE_NODE_DISPLAY_NAME_MAPPINGS,
     )
     from node.image.text_watermark_node import (
         TextWatermarkNode,
@@ -260,7 +260,7 @@ NODE_CLASS_MAPPINGS = {
     **JSON_NODE_CLASS_MAPPINGS,
     **CUSTOM_LLM_NODE_CLASS_MAPPINGS,
     **TEXT_GENERATE_QWEN21_NODE_CLASS_MAPPINGS,
-    **JPG_NODE_CLASS_MAPPINGS,
+    **SAVE_IMAGE_NODE_CLASS_MAPPINGS,
     **WATERMARK_NODE_CLASS_MAPPINGS,
     **SOLID_COLOR_NODE_CLASS_MAPPINGS,
     **QR_NODE_CLASS_MAPPINGS,
@@ -288,7 +288,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **JSON_NODE_DISPLAY_NAME_MAPPINGS,
     **CUSTOM_LLM_NODE_DISPLAY_NAME_MAPPINGS,
     **TEXT_GENERATE_QWEN21_NODE_DISPLAY_NAME_MAPPINGS,
-    **JPG_NODE_DISPLAY_NAME_MAPPINGS,
+    **SAVE_IMAGE_NODE_DISPLAY_NAME_MAPPINGS,
     **WATERMARK_NODE_DISPLAY_NAME_MAPPINGS,
     **SOLID_COLOR_NODE_DISPLAY_NAME_MAPPINGS,
     **QR_NODE_DISPLAY_NAME_MAPPINGS,
@@ -318,7 +318,7 @@ __all__ = [
     "SaveJsonFileNode",
     "CustomLLMNode",
     "TextGenerateQwen21PromptNode",
-    "SaveJPGNode",
+    "SaveImageNode",
     "PixelSizeToRatioNode",
     "TextWatermarkNode",
     "CreateSolidColorNode",
