@@ -169,20 +169,21 @@ class SaveImageNode:
         output_dir = kwargs.get("output_dir")
         prompt, extra_pnginfo = self._collect_metadata(kwargs)
 
-        output_dir_path = (
-            Path(output_dir)
-            if output_dir is not None
-            else self._get_output_dir(subfolder)
-        )
+        base_dir = Path(output_dir) if output_dir is not None else None
+        output_dir_path = self._get_output_dir(subfolder, base_dir=base_dir)
         output_dir_path.mkdir(parents=True, exist_ok=True)
+        root_dir = base_dir if base_dir is not None else self._get_output_dir("")
+        relative_subfolder = self._relative_subfolder(output_dir_path, root_dir)
 
         if image is None:
-            return (None, "")
+            # 与正常分支保持同一种返回形状；没有图就不给预览条目，避免前端请求 404
+            return {"ui": {"images": []}, "result": (None, "")}
 
         suffix = "png" if image_format == "png" else "jpg"
         safe_prefix = self._sanitize_filename(filename_prefix) or "ComfyUI"
 
         saved_names: list[str] = []
+        saved_files: list[dict[str, str]] = []
         pil_images = self._to_pil_images(image, keep_alpha=image_format == "png")
         # 与官方 SaveImage 一致：先扫描输出目录取「已有最大序号 + 1」，因此连续运行
         # 不会覆盖历史输出；同一批次内按偏移量递增，不再重复扫描。
@@ -190,7 +191,8 @@ class SaveImageNode:
         for offset, pil_image in enumerate(pil_images):
             # 文件名 = 前缀 + 自动序号；输出端口给的正是这一段（不含后缀）
             filename_base = f"{safe_prefix}_{counter + offset:05d}"
-            output_path = output_dir_path / f"{filename_base}.{suffix}"
+            filename = f"{filename_base}.{suffix}"
+            output_path = output_dir_path / filename
             if image_format == "png":
                 self._save_png_with_metadata(
                     pil_image, output_path, prompt, extra_pnginfo
@@ -204,9 +206,21 @@ class SaveImageNode:
                     quality,
                 )
             saved_names.append(filename_base)
+            # 与官方 SaveImage 的 ui.images 同构：前端据此拼 /view 请求显示预览
+            saved_files.append(
+                {
+                    "filename": filename,
+                    "subfolder": relative_subfolder,
+                    "type": "output",
+                }
+            )
 
-        # 返回原始图像张量用于预览，并把本次保存的文件名（不含后缀）作为文本输出
-        return (image, "\n".join(saved_names))
+        # 返回 dict 而不是裸元组：ui.images 让节点像原生「保存图像」一样显示预览，
+        # result 保持原有的两个输出端口（预览图片 + 文件名）不变。
+        return {
+            "ui": {"images": saved_files},
+            "result": (image, "\n".join(saved_names)),
+        }
 
     @staticmethod
     def _next_counter(folder: Path, prefix: str) -> int:
@@ -281,7 +295,13 @@ class SaveImageNode:
             return _normalize_workflow_payload(extra_pnginfo)
         return _normalize_workflow_payload({})
 
-    def _get_output_dir(self, subfolder: str) -> Path:
+    def _get_output_dir(
+        self, subfolder: str, base_dir: Optional[Union[str, os.PathLike[str]]] = None
+    ) -> Path:
+        """返回实际保存目录；base_dir 用于测试时覆盖输出根目录。"""
+        if base_dir is not None:
+            root = Path(base_dir)
+            return root / subfolder if subfolder else root
         if folder_paths is not None:
             try:
                 output_dir = folder_paths.get_output_directory()
@@ -290,10 +310,19 @@ class SaveImageNode:
                 return Path(output_dir)
             except Exception:
                 pass
-        base_dir = Path(os.getcwd()) / "output"
+        fallback = Path(os.getcwd()) / "output"
         if subfolder:
-            base_dir = base_dir / subfolder
-        return base_dir
+            fallback = fallback / subfolder
+        return fallback
+
+    @staticmethod
+    def _relative_subfolder(folder: Path, root: Path) -> str:
+        """把保存目录换算成 /view 需要的相对子文件夹（正斜杠、根目录为空串）。"""
+        try:
+            relative = folder.resolve().relative_to(root.resolve())
+        except (ValueError, OSError):
+            return ""
+        return "" if str(relative) in ("", ".") else relative.as_posix()
 
     def _sanitize_filename(self, value: str) -> str:
         value = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
