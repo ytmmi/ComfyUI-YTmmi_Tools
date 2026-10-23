@@ -124,6 +124,11 @@ try:
         NODE_CLASS_MAPPINGS as LIST_INFO_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as LIST_INFO_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from .node.audio.audio_info_node import (
+        AudioInfoNode,
+        NODE_CLASS_MAPPINGS as AUDIO_INFO_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as AUDIO_INFO_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 except ImportError:  # pragma: no cover - fallback for direct module loading
     from node.image.image_to_png_node import (
         ImageToPngNode,
@@ -250,6 +255,11 @@ except ImportError:  # pragma: no cover - fallback for direct module loading
         NODE_CLASS_MAPPINGS as LIST_INFO_NODE_CLASS_MAPPINGS,
         NODE_DISPLAY_NAME_MAPPINGS as LIST_INFO_NODE_DISPLAY_NAME_MAPPINGS,
     )
+    from node.audio.audio_info_node import (
+        AudioInfoNode,
+        NODE_CLASS_MAPPINGS as AUDIO_INFO_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as AUDIO_INFO_NODE_DISPLAY_NAME_MAPPINGS,
+    )
 
 # 声明前端 JS 文件目录，ComfyUI 会自动加载该目录下的所有 .js 文件
 WEB_DIRECTORY = "./js"
@@ -280,6 +290,7 @@ NODE_CLASS_MAPPINGS = {
     **STRINGS_TO_LIST_NODE_CLASS_MAPPINGS,
     **MERGE_LISTS_NODE_CLASS_MAPPINGS,
     **LIST_INFO_NODE_CLASS_MAPPINGS,
+    **AUDIO_INFO_NODE_CLASS_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -308,6 +319,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **STRINGS_TO_LIST_NODE_DISPLAY_NAME_MAPPINGS,
     **MERGE_LISTS_NODE_DISPLAY_NAME_MAPPINGS,
     **LIST_INFO_NODE_DISPLAY_NAME_MAPPINGS,
+    **AUDIO_INFO_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 __all__ = [
@@ -339,4 +351,5 @@ __all__ = [
     "StringsToListNode",
     "MergeListsNode",
     "ListInfoNode",
+    "AudioInfoNode",
 ]

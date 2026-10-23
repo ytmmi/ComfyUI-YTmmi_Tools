@@ -3,12 +3,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-custom--nodes-blue.svg)](https://github.com/comfyanonymous/ComfyUI)
 
-ComfyUI 自定义节点扩展包：图像、视频、列表、文本与二维码等常用工具节点，支持 OpenAI 兼容接口的大模型调用，以及 skills 提示词工程。
+ComfyUI 自定义节点扩展包：图像、视频、音频、列表、文本与二维码等常用工具节点，支持 OpenAI 兼容接口的大模型调用，以及 skills 提示词工程。
 
 ## 功能特性
 
 - **图像**：保存与格式转换、纯色生成、文字水印、按遮罩裁剪与贴回、批量加载、图像合并
 - **视频**：多段视频拼接、视频预览
+- **音频**：读取音频文件名、时长、采样率、声道、编码、码率与文件大小
 - **列表**：字符串切分与列表互转、按位置提取、多列表合并、列表信息
 - **数据**：文本导出（txt / md / csv / json）、像素比例换算、多重文本展示（结果写入工作流）、密钥加密存储
 - **大模型**：OpenAI 兼容接口调用（支持 skills、图片输入、完整请求参数、多轮对话历史、工具调用）、Qwen-Image 2.1 提示词改写
@@ -33,6 +34,7 @@ pip install -r requirements.txt
 |---|---|
 | `YTmmi/image` | 保存图像、图像转为png、创建纯色图像、遮罩裁剪图像、图像合并、文字水印、批量加载图像、二维码识别、创建二维码 |
 | `YTmmi/video` | 视频拼接、预览视频 |
+| `YTmmi/audio` | 获取音频信息 |
 | `YTmmi/utility` | 像素大小指定比例、展示文本（多重）、密钥储存器、skills管理器 |
 | `YTmmi/list` | 分离字符串到列表、列表分离字符串、列表提取字符串、字符串到列表、合并列表、获取列表信息 |
 | `YTmmi/text` | 保存文本、自定义LLM、生成Qwen2.1提示词 |
@@ -54,6 +56,16 @@ pip install -r requirements.txt
 - 输出「文件路径」（绝对路径）。可选「子文件夹」相对 ComfyUI 的 `output` 目录。
 
 原「保存json文件」节点已由本节点取代（`json` 格式 + 字符串输入原样写出即等价行为）。
+
+## 获取音频信息
+
+读取音频文件或已解码的 `AUDIO` 输入，输出音频的元数据。
+
+- **输入**：「文件名」填音频文件路径（相对路径按 ComfyUI 的 `input` 目录解析，也可直接填绝对路径）；「音频」为可选的 `AUDIO` 连线，只连它也能用。
+- **输出**：文件名、时长秒、时长文本（`mm:ss.mmm`，超过一小时为 `hh:mm:ss.mmm`）、采样率、声道数、编码、容器格式、码率（kbps）、大小MB、完整路径、信息文本（多行汇总）。
+- 元数据由 PyAV 读取，覆盖 `wav` / `mp3` / `flac` / `m4a` / `aac` / `ogg` / `opus` 等常见格式；PyAV 不可用时对 WAV 退回标准库 `wave`；只连「音频」时用波形长度与采样率推算时长。
+- 同时给出「文件名」与「音频」时以文件信息为准，文件读不到的字段（如时长、声道数）用波形补足。
+- 「文件名」指向的文件未变化时复用缓存，文件变化或只连音频时重新执行。
 
 ## 自定义LLM
 
