@@ -1,5 +1,5 @@
-# 图像合并
-"""图像合并：把一张图像按坐标贴到另一张图像（画布）上，用于还原「遮罩裁剪图像」的裁剪结果。
+# 图像合并(坐标)
+"""图像合并(坐标)：把一张图像按坐标贴到另一张图像（画布）上，用于还原「遮罩裁剪图像」的裁剪结果。
 
 画布取**处于底层的那张图**：默认「图像0」在下、「图像1」在上，因此画布 = 图像0；
 打开「图层顺序翻转」后「图像1」在下，画布 = 图像1。处于上层的那张图按「坐标x / 坐标y」
@@ -141,10 +141,10 @@ def _paste(canvas_chw, patch_chw, x: int, y: int, mask_hw=None):
 
 
 class ImageMergeNode:
-    """图像合并。"""
+    """图像合并(坐标)。"""
 
     CATEGORY = "YTmmi/image"
-    DESCRIPTION = "图像合并：把上层图像按坐标x、坐标y贴到底层图像上，可用遮罩给上层做蒙版，用于还原遮罩裁剪图像的结果"
+    DESCRIPTION = "图像合并(坐标)：把上层图像按坐标x、坐标y贴到底层图像上，可用遮罩给上层做蒙版，用于还原遮罩裁剪图像的结果"
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -171,16 +171,24 @@ class ImageMergeNode:
     FUNCTION = "merge"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False,)
-    SEARCH_ALIASES = ["image merge", "paste image", "uncrop", "图像合并", "图像拼接", "蒙版合并"]
+    SEARCH_ALIASES = [
+        "image merge",
+        "paste image",
+        "uncrop",
+        "图像合并(坐标)",
+        "图像合并",
+        "图像拼接",
+        "蒙版合并",
+    ]
 
     def merge(self, **kwargs):
         if torch is None:
-            raise RuntimeError("图像合并节点需要 torch 环境")
+            raise RuntimeError("图像合并(坐标)节点需要 torch 环境")
 
         image0 = kwargs.get("图像0")
         image1 = kwargs.get("图像1")
         if image0 is None or image1 is None:
-            raise ValueError("图像合并需要同时连接「图像0」与「图像1」")
+            raise ValueError("图像合并(坐标)需要同时连接「图像0」与「图像1」")
 
         coord_x = float(kwargs.get("坐标x", 0.0))
         coord_y = float(kwargs.get("坐标y", 0.0))
@@ -228,7 +236,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ImageMergeNode": "图像合并",
+    "ImageMergeNode": "图像合并(坐标)",
 }
 
 __all__ = [
