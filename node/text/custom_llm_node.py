@@ -470,6 +470,11 @@ class RunStep:
     usage: dict = field(default_factory=dict)  # 该步接口返回的 usage
     elapsed: float = 0.0  # 该步耗时（秒）
     tool_calls: list = field(default_factory=list)  # 该步模型请求的工具调用
+    # 本步 tool_calls 是否由节点实际执行（skills 按需读取模式）。False 表示单轮
+    # 模式下「原样序列化为输出文本」。渲染据此区分两种 tool_calls 来源。
+    tools_executed: bool = False
+    # 本步实际成功回注的文件数（tools_executed 为 True 时才有意义）
+    executed_reads: int = 0
 
 
 @dataclass
@@ -583,12 +588,28 @@ class RunTrace:
                     "- 说明：本轮接口未返回 content，节点按既有规则回退使用思考内容"
                 )
             if step.tool_calls:
-                lines.append(
-                    f"- 工具调用：模型请求了 {len(step.tool_calls)} 个工具"
-                    "（本节点不执行工具，已把 tool_calls 原样作为输出文本返回）"
-                )
-            # 最终步的回复即「最终输出」，不在此处重复
-            if not step.is_final:
+                if step.tools_executed:
+                    # skills 按需读取模式：工具确实由节点执行并回注，不是原样回传
+                    if step.executed_reads:
+                        lines.append(
+                            f"- 工具调用：模型请求了 {len(step.tool_calls)} 个工具"
+                            f"（节点已执行，成功读取并回注 {step.executed_reads} 个文件）"
+                        )
+                    else:
+                        lines.append(
+                            f"- 工具调用：模型请求了 {len(step.tool_calls)} 个工具"
+                            "（节点已执行，但本次没有文件被成功回注，详见下方说明）"
+                        )
+                else:
+                    lines.append(
+                        f"- 工具调用：模型请求了 {len(step.tool_calls)} 个工具"
+                        "（本节点不执行工具，已把 tool_calls 原样作为输出文本返回）"
+                    )
+            # 最终步的回复即「最终输出」，不在此处重复；回退思考内容时
+            # reply 与 reasoning 是同一段文字，也不再重复渲染
+            if not step.is_final and not (
+                step.source == "reasoning_content" and step.reply == step.reasoning
+            ):
                 lines.extend(_labelled_block("回复", step.reply))
 
         lines.append("")
@@ -1614,6 +1635,8 @@ class CustomLLMNode:
                         usage=reply.usage,
                         elapsed=reply.elapsed,
                         tool_calls=reply.tool_calls,
+                        tools_executed=True,
+                        executed_reads=len(tool_reads),
                     )
                 )
                 convo.append(
@@ -1898,7 +1921,7 @@ class CustomLLMNode:
 
         note = (
             f"调用内置工具 {'、'.join(names)}（{len(tool_calls)} 个）"
-            "→ 已自动读取并回注"
+            + ("→ 已自动读取并回注" if reads else "→ 未能回注任何文件（详见说明）")
         )
         return tool_messages, reads, injected, note
 
