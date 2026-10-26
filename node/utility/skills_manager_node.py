@@ -709,6 +709,13 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         return (
             "当前模式：MOSS-Image 图像提示词增强——本清单仅列出 MOSS-Image 家族的 skills，"
             "请只在本家族内选择；不要路由到 H3 视频、Qwen-Image 或 Anima 家族的写法。"
+            "该家族现在有 2 个 skills，先按需求类型选一个来读："
+            "**动画 / 二次元风格需求优先读 `moss-anime-prompt-template`**——"
+            "二次元人物、IP 同人、场景插画、多人互动、海报、漫画等动画风格需求走这一支，"
+            "它是中文模板，画风独立首句、人数与属性绑定、镜头与空间、光照因果、"
+            "Layout 细则与输出前检查都已内联成硬规则；"
+            "**通用图像创意扩写、只需 caption、或需要像素级 Layout 与坐标编译时读 "
+            "`moss-image-prompt-enhancer`**。"
             "该家族的产出是**可直接粘贴的 MOSS-Image 正向提示词**，有两种交付物："
             "（1）Caption——写 UTF-8 JSON `{\"caption\":\"...\"}`，正文是连贯散文，"
             "空间关系用文字表达，可见文字逐字保留原语言；"
@@ -1080,6 +1087,11 @@ class SkillsManagerNode:
         "layout",
         "版面",
         "bbox",
+        "二次元提示词模板",
+        "anime prompt",
+        "moss anime",
+        "漫画",
+        "海报",
     ]
 
     @classmethod

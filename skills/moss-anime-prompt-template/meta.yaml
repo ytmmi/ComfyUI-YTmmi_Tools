@@ -1,0 +1,8 @@
+display-name-zh: MOSS 二次元提示词模板
+display-name-en: MOSS Anime Prompt Template
+version: 1.0.0
+tag-cn: 提示词 / 图像 / MOSS-Image / 二次元
+tag-en: Prompt / Image / MOSS-Image / Anime
+summary-cn: 把二次元人物、IP 同人、场景插画、多人互动、海报与漫画需求写成 MOSS-Image 可直接使用的正向提示词（Caption / Tag / Layout 三种交付，含画风独立首句、人数与属性绑定、光照因果与 Layout 坐标换算等硬规则）。
+summary-en: Write MOSS-Image anime positive prompts (Caption, Tag or pixel Layout) from a character, IP fan-art, scene, group interaction, poster or comic brief, with hard rules for the standalone style opening, attribute binding, lighting causality and Layout coordinate conversion.
+source: user

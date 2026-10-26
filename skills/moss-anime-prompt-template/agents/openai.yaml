@@ -1,0 +1,4 @@
+interface:
+  display_name: "MOSS Anime Prompt Template"
+  short_description: "Write MOSS-Image anime prompts: caption, tags or pixel layout"
+  default_prompt: "Use $moss-anime-prompt-template to turn my anime illustration idea into a ready-to-paste MOSS-Image prompt."

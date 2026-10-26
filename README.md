@@ -55,6 +55,7 @@ skills 的编写方式见 [custom_skills/README.md](custom_skills/README.md)。
 - [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) — 内置 H3 skills
 - [Anima 模型卡](https://huggingface.co/circlestone-labs/Anima) / [ComfyUI 官方教程](https://docs.comfy.org/tutorials/image/anima/anima) — Anima skills 依据
 - [moss-image-prompt-enhancer](skills/moss-image-prompt-enhancer/SKILL.md) — MOSS-Image 提示词增强 skills
+- [moss-anime-prompt-template](skills/moss-anime-prompt-template/SKILL.md) — MOSS 二次元提示词模板（sfw 版）
 
 ## 许可证
 

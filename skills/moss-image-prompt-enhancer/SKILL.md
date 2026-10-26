@@ -1,7 +1,7 @@
 ---
 name: moss-image-prompt-enhancer
 description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Use for prompt enhancement, image composition and text placement; this skill does not generate images.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # MOSS-Image Prompt Enhancer
@@ -28,6 +28,18 @@ when given. Preserve visible text verbatim in its original language, including
 punctuation, capitalization and requested line breaks. A quoted sentence in an
 instruction is not necessarily text to render: distinguish visible wording from
 reference material and constraints.
+
+## Anime and character routing
+
+For anime, 二次元, IP fan art, manga panels, character posters and multi-person
+interaction requests, prefer the sibling skill `moss-anime-prompt-template`
+(中文模板). It carries the stricter rules those requests need: style as an
+independent opening sentence, per-character attribute grouping, camera and
+spatial layering, lighting causality, Layout item splitting and a pre-delivery
+checklist. Use this skill for general image ideas, caption-only work, and
+pixel-level Layout drafting with `scripts/compile_prompt.py`; the two skills
+share the same caption/Layout contract and can be combined, but do not restate
+the anime rules here.
 
 ## Develop the image
 
