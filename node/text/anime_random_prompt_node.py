@@ -201,6 +201,18 @@ ANIMA_QUALITY_PRESETS = [
     "best quality, safe",
 ]
 
+# 质量前缀的中文显示名（下拉里只显示中文，输出仍为英文原串）
+ANIMA_QUALITY_PRESET_LABELS = OrderedDict(
+    [
+        ("预设：杰作+最佳+7分+安全", ANIMA_QUALITY_PRESETS[0]),
+        ("预设：杰作+最佳+8分7分+安全", ANIMA_QUALITY_PRESETS[1]),
+        ("预设：杰作+最佳+安全", ANIMA_QUALITY_PRESETS[2]),
+        ("预设：杰作+最佳+高分辨率+7分+安全", ANIMA_QUALITY_PRESETS[3]),
+        ("预设：大师杰作+9分8分+高分辨率+2025", ANIMA_QUALITY_PRESETS[4]),
+        ("预设：最佳+安全", ANIMA_QUALITY_PRESETS[5]),
+    ]
+)
+
 # 负向提示词的固定基线（词库 negative 槽里必然存在的条目）
 BASELINE_NEGATIVES = [
     "worst quality",
@@ -275,13 +287,82 @@ def _unique_values(items, extra=()):
     return out
 
 
-def dropdown_values(slot_key):
-    """某个槽位下拉的完整选项（首项恒为「随机」）。"""
+def slot_display_items(slot_key):
+    """槽位候选项的 ``(中文显示值, 英文标签)`` 列表。
+
+    下拉里**只显示中文**（用户要求），但生成的提示词仍然是英文标签。
+    中文缺失时退回英文，保证任何一条候选都有可显示的名字。
+    """
     items = tag_slots().get(slot_key, {}).get("items", [])
-    values = [RANDOM_LABEL]
-    values += _unique_values(items)
+    out = []
+    seen = set()
+    for item in items:
+        en = str(item.get("en") or "").strip()
+        if not en:
+            continue
+        zh = str(item.get("zh") or "").strip() or en
+        if zh in seen:
+            continue
+        seen.add(zh)
+        out.append((zh, en))
+    return out
+
+
+def slot_display_map(slot_key):
+    """显示值 → 英文标签 的反查表。
+
+    同一显示值对应多个英文标签时取第一个（构建脚本已保证同槽位中文唯一）。
+    """
+    mapping = {}
+    for zh, en in slot_display_items(slot_key):
+        mapping.setdefault(zh, en)
     if slot_key == "quality":
-        values += [v for v in ANIMA_QUALITY_PRESETS if v not in values]
+        for label, preset in ANIMA_QUALITY_PRESET_LABELS.items():
+            mapping.setdefault(label, preset)
+    return mapping
+
+
+def _quality_label(preset):
+    """Anima 质量前缀 → 中文显示名（找不到就回显英文）。"""
+    for label, value in ANIMA_QUALITY_PRESET_LABELS.items():
+        if value == preset:
+            return label
+    return str(preset)
+
+
+def _slot_hit_text(slot_key, english):
+    """命中情况的展示文本：``中文（英文）``。
+
+    中文与英文相同时只回显英文（避免「brown hair（brown hair）」这种噪声）。
+    """
+    english = str(english or "")
+    if slot_key == "quality":
+        zh = _quality_label(english)
+        if zh == english:
+            # 不是整条 Anima 前缀，而是候选表里的单个质量标签 → 查候选表的中文名
+            for display, en in slot_display_items(slot_key):
+                if en == english:
+                    zh = display
+                    break
+        if zh == english:
+            return english
+        return "%s（%s）" % (zh, english)
+    zh = ""
+    for display, en in slot_display_items(slot_key):
+        if en == english:
+            zh = display
+            break
+    if not zh or zh == english:
+        return english
+    return "%s（%s）" % (zh, english)
+
+
+def dropdown_values(slot_key):
+    """某个槽位下拉的完整选项（首项恒为「随机」，其余是中文显示值）。"""
+    values = [RANDOM_LABEL]
+    values += [zh for zh, _en in slot_display_items(slot_key)]
+    if slot_key == "quality":
+        values += [label for label in ANIMA_QUALITY_PRESET_LABELS if label not in values]
     return values
 
 
@@ -594,6 +675,9 @@ class AnimeRandomPromptNode:
 
         返回 ``{"values": [标签, ...], "explicit": bool}``；``explicit`` 表示
         用户显式指定（此时场景搭配预设不再覆盖它）。
+
+        ``raw`` 可以是下拉里的**中文显示值**，也可以是英文标签本身
+        （老工作流 / 手写英文都能用）；最终一律换算成英文标签输出。
         """
         label = SLOT_LABELS.get(slot_key, slot_key)
         value = "" if raw is None else str(raw).strip()
@@ -602,25 +686,38 @@ class AnimeRandomPromptNode:
             # 质量槽随机 → 抽一条 Anima 质量前缀（单标签不成段）
             if slot_key == "quality":
                 preset = ANIMA_QUALITY_PRESETS[rng.randrange(len(ANIMA_QUALITY_PRESETS))]
-                report_lines.append("[%s] 随机 → %s" % (label, preset))
+                report_lines.append(
+                    "[%s] 随机 → %s（%s）"
+                    % (label, _quality_label(preset), preset)
+                )
                 return {"values": [preset], "explicit": False}
             pool = slot_candidates(slot_key, level_num)
             if not pool:
                 report_lines.append("[%s] 无可用候选（当前分级下候选池为空）" % label)
                 return {"values": [], "explicit": False}
             picked = pool[rng.randrange(len(pool))]
-            report_lines.append("[%s] 随机 → %s" % (label, picked.get("en", "")))
-            return {"values": [picked.get("en", "")], "explicit": False}
+            english = picked.get("en", "")
+            report_lines.append(
+                "[%s] 随机 → %s" % (label, _slot_hit_text(slot_key, english))
+            )
+            return {"values": [english], "explicit": False}
 
+        # 中文显示值 → 英文标签
+        display_map = slot_display_map(slot_key)
+        english = display_map.get(value)
+        if english is None:
+            english = value  # 用户直接写了英文标签
         # 质量槽允许直接选整条 Anima 前缀（不在候选表里）
-        if slot_key == "quality" and value in ANIMA_QUALITY_PRESETS:
-            report_lines.append("[%s] 指定 → %s" % (label, value))
-            return {"values": [value], "explicit": True}
+        if slot_key == "quality" and english in ANIMA_QUALITY_PRESETS:
+            report_lines.append(
+                "[%s] 指定 → %s（%s）" % (label, _quality_label(english), english)
+            )
+            return {"values": [english], "explicit": True}
 
         # 指定值：在候选表里精确找（大小写不敏感）
         found = None
         for item in tag_slots().get(slot_key, {}).get("items", []):
-            if normalize(item.get("en")) == normalize(value):
+            if normalize(item.get("en")) == normalize(english):
                 found = item
                 break
         if found is None:
@@ -635,8 +732,8 @@ class AnimeRandomPromptNode:
             )
             return self._resolve_slot(slot_key, RANDOM_LABEL, rng, level_num, report_lines)
 
-        report_lines.append("[%s] 指定 → %s" % (label, value))
-        return {"values": [value], "explicit": True}
+        report_lines.append("[%s] 指定 → %s" % (label, _slot_hit_text(slot_key, english)))
+        return {"values": [english], "explicit": True}
 
     # -- 主流程 ------------------------------------------------------------
 
@@ -823,10 +920,13 @@ __all__ = [
     "FIELD_TO_SLOT",
     "LEVEL_OPTIONS",
     "ANIMA_QUALITY_PRESETS",
+    "ANIMA_QUALITY_PRESET_LABELS",
     "BASELINE_NEGATIVES",
     "normalize",
     "resolve_level",
     "slot_candidates",
+    "slot_display_items",
+    "slot_display_map",
     "dropdown_values",
     "scene_preset_values",
     "find_scene_preset",

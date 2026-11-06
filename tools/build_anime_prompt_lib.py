@@ -110,6 +110,83 @@ PF_BASE_LOOK_TAGS = {
 # 剩下的（种族 / 职业 / 身份）归到「体型」槽（身份与体态同属人物基本面）
 PF_BASE_IDENTITY_SLOT = "body"
 
+# ---------------------------------------------------------------------------
+# 中文标签修正表
+# ---------------------------------------------------------------------------
+# 1) Prompt Forge 里有一批画师笔名，中文列直接写的是英文原名（没有可译中文），
+#    这里统一加「画师」前缀，保证每个选项都有中文标识；
+# 2) 有一批**同槽位中文重名**的选项（例如 slip dress / camisole dress 都是
+#    「吊带裙」），下拉里会出现两个一模一样的条目、无法分辨对应哪个英文标签，
+#    这里给它们分别起可区分的中文名。
+ZH_OVERRIDES = {
+    # —— 画师笔名（源数据的中文列 == 英文原名）——
+    "wlop": "画师WLOP",
+    "artgerm": "画师Artgerm",
+    "huke": "画师huke",
+    "redjuice": "画师redjuice",
+    "ask (artist)": "画师ask",
+    "pako": "画师pako",
+    "lack": "画师lack",
+    "noodle": "画师noodle",
+    "ciloranko": "画师ciloranko",
+    "modare": "画师modare",
+    "rossdraws": "画师RossDraws",
+    "sakimichan": "画师Sakimichan",
+    "yuumei": "画师Yuumei",
+    "loish": "画师Loish",
+    "clamp": "画师CLAMP",
+    "neco": "画师neco",
+    "lpip": "画师Lpip",
+    "mika pikazo": "画师Mika Pikazo",
+    "saitom": "画师saitom",
+    "rurudo": "画师rurudo",
+    "anmi": "画师anmi",
+    "hisasi": "画师hisasi",
+    "tony taka": "画师Tony Taka",
+    "atey ghailan": "画师Atey Ghailan",
+    "sam yang": "画师Sam Yang",
+    # —— 数字组合（源数据写的是「3P」「4P」）——
+    "threesome": "三人同框",
+    "foursome": "四人同框",
+    # —— 同槽位中文重名：拆成可区分的中文名 ——
+    "face paint": "面部油彩",
+    "facepaint": "面部彩绘",
+    "smirk": "坏笑",
+    "evil smile": "邪笑",
+    "disgusted": "厌恶",
+    "disgust": "嫌恶",
+    "slip dress": "吊带长裙",
+    "camisole dress": "吊带连衣裙",
+    "sundress": "太阳裙",
+    "pinafore": "围裙式连衣裙",
+    "suspender skirt": "背带裙",
+    "maid outfit": "女仆装束",
+    "maid": "女仆",
+    "nurse uniform": "护士制服",
+    "nurse": "护士",
+    "qipao": "旗袍",
+    "china dress": "中式连衣裙",
+    "ruffles": "荷叶边",
+    "frills": "褶边",
+    "frilled": "带褶边的",
+    "peace sign": "比耶手势",
+    "v": "V手势",
+    "covering mouth": "遮住嘴巴",
+    "covering own mouth": "捂住自己的嘴",
+    "looking down": "视线向下",
+    "head down": "低着头",
+    "gymnasium": "室内体育馆",
+    "stadium": "体育场",
+    "locker room": "储物更衣室",
+    "changing room": "更衣间",
+    "cinema": "电影院",
+    "movie theater": "电影放映厅",
+    "rim light": "轮廓光",
+    "rim lighting": "边缘轮廓光",
+    "fisheye lens": "鱼眼镜头",
+    "fisheye": "鱼眼效果",
+}
+
 
 # 造型台字段 → 槽位
 V5_FIELD_TO_SLOT = {
@@ -470,6 +547,13 @@ def merge_tags(pf_categories, v5_options, tag_levels):
             entry = {"en": item["en"], "zh": item.get("zh", ""), "level": int(item.get("level", 0))}
             seen[key] = entry
         result[slot] = {"name": SLOTS[slot], "items": list(seen.values())}
+
+    # 5) 中文修正表覆盖（画师笔名补中文标识、同槽位重名拆开）
+    for slot, data in result.items():
+        for entry in data["items"]:
+            override = ZH_OVERRIDES.get(_norm(entry.get("en", "")))
+            if override:
+                entry["zh"] = override
     return result
 
 
