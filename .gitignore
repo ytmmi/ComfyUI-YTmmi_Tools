@@ -45,3 +45,6 @@ tools/_v5_src/
 .dsh-acl-recovery/
 
 规则文档/
+
+# playwright-cli 浏览器自动化产生的本地临时文件
+.playwright-cli/
