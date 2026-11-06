@@ -1,4 +1,28 @@
 # 批量加载图像
+"""批量加载图像节点。
+
+从指定文件夹批量加载图片，输出图像批次、当前种子与下一次读取位置。
+
+输入说明：
+- 路径：图片文件夹的绝对路径
+- 顺序：文件排列方式（固定 / 随机 / 名称·时间·类型·大小的正序与反序）
+- 位置：从第几张开始输出（1 为起始），超出总数自动回绕
+- 种子：仅「顺序 = 随机」时用于打乱文件顺序
+- 批次：一次输出几张图片
+
+生成后控制（control_after_generate）：
+「种子」使用 ComfyUI 官方的 control_after_generate 机制（与 KSampler 等节点完全
+一致），**仅控制种子本身**，节点后端不参与：
+
+- 后端只在「种子」输入上声明 ``"control_after_generate": True``；
+- 前端据此自动生成配套的「生成后控制」下拉（固定值/递增值/递减值/随机值），
+  该下拉 ``serialize: false``，**不会出现在发给后端的 prompt 里**；
+- 生成结束后由前端在本地按所选模式改写「种子」控件值（下一次执行即用新种子），
+  因此后端**无需**为种子维护状态缓存，也**无需**回填种子 ui。
+
+「位置」的自动递增仍由后端维护（与官方生成后控制无关）：位置按批次递增，并通过
+ui 回填给前端，因此本节点保留 IS_CHANGED，确保每次执行都真正重新读取图片。
+"""
 import random
 from pathlib import Path
 
@@ -92,9 +116,10 @@ class BatchLoadImagesNode:
     """批量加载指定路径文件夹内的图像。"""
 
     CATEGORY = "YTmmi/image"
-    DESCRIPTION = '批量加载图像：从文件夹批量加载图像为图像批次，支持随机/顺序读取与循环播放，输出图像列表、当前种子与下一次读取位置'
+    DESCRIPTION = '批量加载图像：从文件夹批量加载图像为图像批次，支持随机/顺序读取与循环播放，输出图像列表、当前种子与下一次读取位置（含官方生成后控制）'
 
-    # 类级缓存：按 unique_id 持久化运行状态（即使节点重新实例化也不丢失）
+    # 类级缓存：按 unique_id 持久化「位置」运行状态（即使节点重新实例化也不丢失）
+    # 只维护位置；种子由前端官方 control_after_generate 机制接管，后端不缓存
     _state_cache: dict[str, dict] = {}
 
     @classmethod
@@ -118,12 +143,22 @@ class BatchLoadImagesNode:
                     {"default": "名称 正序", "tooltip": "图片排列顺序，固定时位置参数不变"},
                 ),
                 "位置": ("INT", {"default": 1, "min": 1, "max": 9999999, "step": 1, "tooltip": "从第几张图片开始输出（1为起始）"}),
-                "种子": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "step": 1, "tooltip": "仅顺序为随机时生效：初始随机种子"}),
-                "批次": ("INT", {"default": 1, "min": 1, "max": 9999, "step": 1, "tooltip": "一次输出几张图片"}),
-                "生成后控制": (
-                    ["固定", "增量", "递减", "随机化"],
-                    {"default": "固定", "tooltip": "控制种子的变化方式"},
+                # 「种子」使用 ComfyUI 官方 control_after_generate 机制（与 KSampler 一致）：
+                # 前端据此自动生成配套的「生成后控制」下拉（固定值/递增值/递减值/随机值），
+                # 该下拉 serialize:false 不会发给后端，仅由前端在生成后改写种子控件值。
+                "种子": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "step": 1,
+                        "control_after_generate": True,
+                        "tooltip": "仅顺序为随机时生效：初始随机种子。"
+                        "旁边的「生成后控制」可让它在每次生成后自动变化",
+                    },
                 ),
+                "批次": ("INT", {"default": 1, "min": 1, "max": 9999, "step": 1, "tooltip": "一次输出几张图片"}),
             },
             "hidden": {"unique_id": "UNIQUE_ID"},
         }
@@ -133,10 +168,21 @@ class BatchLoadImagesNode:
     FUNCTION = "load"
     OUTPUT_NODE = False
     OUTPUT_IS_LIST = (False, False, False)
+    SEARCH_ALIASES = [
+        "批量加载",
+        "batch load images",
+        "加载图片",
+        "种子",
+        "生成后控制",
+    ]
 
     @classmethod
     def IS_CHANGED(cls, unique_id="", **kwargs):
-        """始终返回 float("NaN")，确保每次重新执行。"""
+        """始终返回 float("NaN")，确保每次重新执行。
+
+        「位置」每次执行都会按批次递增，缓存必须失效才会重新读取图片。
+        （种子本身由前端官方 control_after_generate 改写，天然改变缓存 key。）
+        """
         return float("NaN")
 
     def load(
@@ -146,19 +192,16 @@ class BatchLoadImagesNode:
         位置: int = 1,
         种子: int = 0,
         批次: int = 1,
-        生成后控制: str = "固定",
         unique_id: str = "",
     ):
         if torch is None:
             raise RuntimeError("torch is not available")
 
         # 获取/初始化状态缓存（按 unique_id 持久化，跨实例不丢失）
+        # 只维护「位置」：种子由前端官方 control_after_generate 机制接管，后端不缓存
         state = BatchLoadImagesNode._state_cache.setdefault(
             unique_id,
-            {
-                "current_pos": None, "last_ui_pos": None,
-                "current_seed": None, "last_ui_seed": None,
-            },
+            {"current_pos": None, "last_ui_pos": None},
         )
 
         # 1. 规范化路径
@@ -180,14 +223,10 @@ class BatchLoadImagesNode:
         # 3. 排序
         files = _sort_files(files, 顺序)
 
-        # ── 种子控制（仅顺序为"随机"时使用）─────────────────
-        # 检测用户是否手动修改了"种子"（区别于 JS 自动回填）
-        if state["last_ui_seed"] is not None and 种子 != state["last_ui_seed"]:
-            state["current_seed"] = 种子
-        elif state["current_seed"] is None:
-            state["current_seed"] = 种子
-
-        effective_seed = state["current_seed"]
+        # ── 种子（仅顺序为"随机"时使用）────────────────────────
+        # 种子完全由前端官方 control_after_generate 机制接管：
+        # 后端不推进、不缓存、不回填，直接使用输入值。
+        effective_seed = 种子
 
         # 仅随机顺序时才用种子打乱
         if 顺序 == "随机":
@@ -222,21 +261,12 @@ class BatchLoadImagesNode:
         if 顺序 not in ("随机", "固定"):
             state["current_pos"] = effective_position + batch_size
 
-        # 种子：根据生成后控制模式改变
-        if 生成后控制 == "增量":
-            state["current_seed"] = effective_seed + 1
-        elif 生成后控制 == "递减":
-            state["current_seed"] = effective_seed - 1
-        elif 生成后控制 == "随机化":
-            state["current_seed"] = random.randint(0, 0xFFFFFFFFFFFFFFFF)
-
         # 记录本次输出到 UI 的值，下次运行对比以判断是否手动修改
-        state["last_ui_seed"] = effective_seed
         state["last_ui_pos"] = effective_position
 
         return {
+            # 只回填「位置」；「种子」由前端官方生成后控制机制本地改写，后端不回填
             "ui": {
-                "seed": [effective_seed],
                 "pos": [state["current_pos"]],
             },
             "result": (result, effective_seed, state["current_pos"]),
