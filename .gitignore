@@ -32,6 +32,13 @@ test/
 
 data/
 
+# 随机提示词(Anime) 的离线词库必须随插件分发，否则节点会因缺词库报错
+!node/text/data/
+!node/text/data/**
+
+# 词库构建脚本的中间产物：Comfyui-Anima-Wardrobe-V5 仓库副本（本机临时抓取）
+tools/_v5_src/
+
 .omo/
 
 # DSH 沙箱文件权限修复的备份与报告（本地临时产物，不属于插件内容）
