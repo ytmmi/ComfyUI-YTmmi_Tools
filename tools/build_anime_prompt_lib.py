@@ -569,6 +569,171 @@ def merge_characters(pf_characters, v5_characters):
     return result
 
 
+# ---------------------------------------------------------------------------
+# 角色别名（日文名 / 繁简变体 / 连字符写法）
+# ---------------------------------------------------------------------------
+# 词库原本只有简体中文名 + 英文名，用户输入「ミク」「初音ミク」这类写法命中不了。
+# 这里把联网抓到的日文名（tools/anime_char_names_cache.json）以及繁简 / 连字符
+# 变体一起烘焙进角色记录，运行时节点只做本地匹配，**不联网**。
+
+# 日文假名 / 日文汉字
+_JP_RE = re.compile(r"[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]")
+
+
+def _opencc_converters():
+    """繁简双向转换器（构建期用；没装 opencc 就返回空列表）。
+
+    - ``t2s``：繁体 → 简体（把日文汉字写法转成简体，便于简体用户命中）
+    - ``s2t``：简体 → 繁体（让繁体用户也能命中简体词库）
+    """
+    out = []
+    try:
+        from opencc import OpenCC  # type: ignore
+
+        for config in ("t2s", "s2t"):
+            try:
+                out.append(OpenCC(config))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return out
+
+
+def build_cjk_map():
+    """构建「繁体 / 日文新字体 → 简体」的单字映射表。
+
+    运行时（节点侧）没有 opencc，所以把映射表烘焙进词库，节点加载后
+    对**用户输入**和**词库名字**做同样的规范化，这样：
+
+    - ``阿爾托莉雅`` → ``阿尔托莉雅`` → 命中 ``阿尔托莉雅·潘德拉贡``
+    - ``博麗霊夢``  → ``博丽灵梦``  → 命中 ``博丽灵梦``
+
+    映射来源：opencc ``t2s``（繁→简）+ ``JPVariants`` 的逆映射
+    （日文新字体 ``霊`` → 繁体 ``靈`` → 简体 ``灵``）。
+    """
+    mapping = {}
+    try:
+        from opencc import OpenCC  # type: ignore
+
+        t2s = OpenCC("t2s")
+        for code in range(0x3400, 0xA000):
+            ch = chr(code)
+            try:
+                simple = t2s.convert(ch)
+            except Exception:
+                continue
+            if simple and simple != ch:
+                mapping[ch] = simple
+    except Exception:
+        return mapping
+
+    # 日文新字体 → 繁体 → 简体（opencc 的 JPVariants 是 繁体→日文，这里取逆）
+    try:
+        import opencc as _opencc_pkg
+        import os as _os
+
+        dict_dir = _os.path.join(_os.path.dirname(_opencc_pkg.__file__), "dictionary")
+        jp_file = _os.path.join(dict_dir, "JPVariants.txt")
+        if _os.path.isfile(jp_file):
+            with open(jp_file, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split("\t")
+                    if len(parts) < 2:
+                        continue
+                    trad, jp = parts[0], parts[1].split(" ")[0]
+                    if jp in mapping:
+                        continue
+                    try:
+                        simple = t2s.convert(trad)
+                    except Exception:
+                        continue
+                    if simple and simple != jp:
+                        mapping[jp] = simple
+    except Exception:
+        pass
+    return mapping
+
+
+def _variants(value, converters):
+    """一个名字的常见书写变体：繁体 / 简体 / 下划线 / 连字符。"""
+    out = []
+    text = str(value or "").strip()
+    if not text:
+        return out
+    for converter in converters:
+        try:
+            converted = converter.convert(text)
+        except Exception:
+            continue
+        if converted and converted != text:
+            out.append(converted)
+    for sep in ("_", "-"):
+        if sep in text:
+            out.append(text.replace(sep, " "))
+    return out
+
+
+def bake_aliases(characters, cache_path):
+    """给角色记录补 ``aliases`` 字段（日文名 / 繁简 / 连字符变体）。
+
+    ``cache_path`` 是 ``tools/fetch_anime_char_names.py`` 抓出来的日文名缓存；
+    文件不存在时只做繁简 / 连字符变体。
+    """
+    converters = _opencc_converters()
+    cache = {}
+    if cache_path and os.path.isfile(cache_path):
+        with open(cache_path, encoding="utf-8") as fh:
+            cache = json.load(fh)
+
+    added = 0
+    for rec in characters:
+        aliases = []
+        seen = set()
+
+        def push(value):
+            value = re.sub(r"\s+", " ", str(value or "").strip())
+            if not value or len(value) > 24:
+                return
+            key = value.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            aliases.append(value)
+
+        # 1) 联网抓到的日文名
+        entry = cache.get(rec.get("tag") or "")
+        for jp in (entry or {}).get("jp_names") or []:
+            push(jp)
+        # 2) 中文名的繁简 / 连字符变体
+        for field in ("name_zh", "char_zh"):
+            for variant in _variants(rec.get(field), converters):
+                push(variant)
+        # 3) 英文名的下划线 / 连字符变体
+        for field in ("name_en", "tag"):
+            for variant in _variants(rec.get(field), converters):
+                push(variant)
+        # 4) 去掉作品括号的英文名
+        base = re.sub(r"\s*\([^()]*\)\s*$", "", str(rec.get("name_en") or "")).strip()
+        if base and base.lower() != str(rec.get("name_en") or "").strip().lower():
+            push(base)
+
+        # 排除与现有字段完全相同的别名（省空间）
+        existing = {
+            _norm(rec.get(f))
+            for f in ("name_zh", "char_zh", "name_en", "tag", "trigger")
+            if rec.get(f)
+        }
+        aliases = [a for a in aliases if _norm(a) not in existing]
+        if aliases:
+            rec["aliases"] = aliases
+            added += 1
+    return added
+
+
 def merge_scenes(pf_presets, v5_scenes):
     scenes = []
     for rec in v5_scenes:
@@ -609,6 +774,15 @@ def main(argv=None):
     characters = merge_characters(pf_characters, v5_characters)
     scenes = merge_scenes(pf_presets, v5_scenes)
 
+    # 角色别名（日文名 / 繁简 / 连字符变体）——联网抓的日文名缓存在 tools/ 下
+    alias_cache = os.path.join(HERE, "anime_char_names_cache.json")
+    with_alias = bake_aliases(characters, alias_cache)
+    print("角色别名：%d 位带别名（缓存 %s）" % (with_alias, alias_cache))
+
+    # 繁简 / 日文新字体 → 简体的单字映射（烘焙进词库，运行时无需 opencc）
+    cjk_map = build_cjk_map()
+    print("汉字规范化映射：%d 个字" % len(cjk_map))
+
     # 档位表：造型台登记表 + 自研判定（登记优先）
     levels = {"tag_levels": tag_levels}
 
@@ -629,10 +803,11 @@ def main(argv=None):
         os.path.join(OUT_DIR, "anime_prompt_characters.json"),
         {
             "_meta": {
-                "schema": "ytmmi/anime-prompt-characters@1",
+                "schema": "ytmmi/anime-prompt-characters@2",
                 "count": len(characters),
                 "sources": ["prompt_forge", "anima_wardrobe_v5"],
             },
+            "cjk_map": cjk_map,
             "characters": characters,
         },
     )

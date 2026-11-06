@@ -34,6 +34,7 @@ import json
 import os
 import random
 import re
+import unicodedata
 from collections import OrderedDict
 
 # ---------------------------------------------------------------------------
@@ -75,6 +76,15 @@ def tag_levels():
 def characters():
     """角色库（2894 位）。"""
     return _load_json(CHARS_FILE)["characters"]
+
+
+def cjk_map() -> dict:
+    """繁简 / 日文新字体 → 简体的单字映射（构建期烘焙进词库）。
+
+    有了它，用户输入 ``阿爾托莉雅`` / ``博麗霊夢`` 这类写法也能命中
+    简体词库里的角色。
+    """
+    return _load_json(CHARS_FILE).get("cjk_map") or {}
 
 
 def scenes():
@@ -236,8 +246,92 @@ _COUNT_TAGS = {"1girl", "2girls", "3girls", "1boy", "2boys", "solo", "multiple g
 
 
 def normalize(text) -> str:
-    """规范化：去首尾空白 + 压空格 + 小写。"""
-    return re.sub(r"\s+", " ", str(text or "").strip().lower())
+    """规范化：去首尾空白 + 压空格 + 小写。
+
+    额外做三件事：
+
+    - 全角字符转半角（NFKC）
+    - 下划线 / 连字符统一成空格 → ``hatsune-miku`` ≡ ``hatsune_miku`` ≡ ``hatsune miku``
+    - 繁体 / 日文新字体汉字转简体（用词库里烘焙的 ``cjk_map``）→
+      ``阿爾托莉雅`` ≡ ``阿尔托莉雅``、``博麗霊夢`` ≡ ``博丽灵梦``
+    """
+    text = unicodedata.normalize("NFKC", str(text or "")).strip().lower()
+    text = re.sub(r"[\s_]+", " ", text)
+    text = re.sub(r"\s*-\s*", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return _apply_cjk_map(text)
+
+
+_CJK_MAP_CACHE = None
+
+
+def _apply_cjk_map(text):
+    """把繁体 / 日文新字体汉字替换成简体（词库烘焙的映射表）。"""
+    global _CJK_MAP_CACHE
+    if not text:
+        return text
+    if _CJK_MAP_CACHE is None:
+        try:
+            _CJK_MAP_CACHE = cjk_map()
+        except Exception:
+            _CJK_MAP_CACHE = {}
+    if not _CJK_MAP_CACHE:
+        return text
+    return "".join(_CJK_MAP_CACHE.get(ch, ch) for ch in text)
+
+
+def _word_tokens(text) -> set:
+    """把名字切成可比较的词元。
+
+    - ASCII 字母 / 数字：按连续段切（``hatsune miku`` → ``{"hatsune", "miku"}``）
+    - 汉字：按**整段**切（``初音未来`` → ``{"初音未来"}``），
+      这样 ``蕾姆`` 不会命中 ``拉姆蕾萨尔·瓦伦泰``（逐字切就会误判）
+    - 假名：按**单字**切（``初音ミク`` → ``{"初音", "ミ", "ク"}``），
+      这样 ``ミク`` 能命中 ``初音ミク``
+
+    用来做**词边界匹配**：``ame`` 不应该命中 ``camellya``，
+    ``miku`` 应该命中 ``hatsune miku``。
+    """
+    text = _apply_cjk_map(unicodedata.normalize("NFKC", str(text or "")).lower())
+    out = set(re.findall(r"[a-z0-9]+", text))
+    out.update(re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff]+", text))
+    out.update(re.findall(r"[\u3040-\u30ff]", text))
+    return out
+
+
+def _token_subset(needle_tokens, haystack_tokens) -> bool:
+    """词元集合是否被完全包含（且 needle 非空）。"""
+    if not needle_tokens:
+        return False
+    return needle_tokens.issubset(haystack_tokens)
+
+
+_HAN_RUN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
+_KANA_RUN = re.compile(r"[\u3040-\u30ff]+")
+
+
+def _cjk_runs(text):
+    """取出文本里的汉字整段与假名整段（用于前缀 / 后缀的温和匹配）。"""
+    text = unicodedata.normalize("NFKC", str(text or ""))
+    return _HAN_RUN.findall(text) + _KANA_RUN.findall(text)
+
+
+def _cjk_affix_match(needle, value) -> bool:
+    """汉字 / 假名的**前缀或后缀**匹配（比整词包含弱一档）。
+
+    只在 needle 恰好是一段汉字（或假名）时启用，避免把
+    ``蕾姆`` 匹配到 ``拉姆蕾萨尔·瓦伦泰`` 这种同字不同词的情况。
+    """
+    runs = _cjk_runs(needle)
+    if len(runs) != 1:
+        return False
+    query = runs[0]
+    if len(query) < 2:
+        return False
+    for run in _cjk_runs(value):
+        if run.startswith(query) or run.endswith(query):
+            return True
+    return False
 
 
 def resolve_level(value):
@@ -396,7 +490,15 @@ def match_character(query, library=None):
     """用字符串在角色库里命中。
 
     返回 ``(命中列表, 未命中列表)``；命中项是角色字典，未命中项是原始字符串。
-    匹配顺序：精确名 > 名称包含 > trigger 包含 > 全词出现在候选串里。
+
+    可命中的写法：
+
+    - 中文名（简体）、中文名的繁体 / 连字符变体
+    - 英文名、英文 tag、去作品括号的英文名
+    - **日文名**（假名 / 日文汉字，来自词库的 ``aliases`` 字段）
+    - 英文名的**词边界部分匹配**：``miku`` → ``hatsune miku``，
+      ``gura`` → ``gawr gura``；但 ``ame`` **不会**命中 ``camellya``
+      （词元不完全一致）
     """
     library = characters() if library is None else library
     text = str(query or "").strip()
@@ -409,27 +511,34 @@ def match_character(query, library=None):
         if not part:
             continue
         needle = normalize(part)
+        needle_tokens = _word_tokens(part)
         best = None
         best_score = 0
         for rec in library:
             score = 0
-            for field in ("name_zh", "name_en", "tag", "trigger"):
+            # 逐字段比对：完全相等 > 词边界包含 > 汉字前后缀包含
+            for field in ("name_zh", "char_zh", "name_en", "tag", "trigger"):
                 value = normalize(rec.get(field))
                 if not value:
                     continue
                 if value == needle:
+                    score = max(score, 5)
+                elif _token_subset(needle_tokens, _word_tokens(value)):
                     score = max(score, 4)
-                elif needle in value:
+                elif _cjk_affix_match(needle, value):
                     score = max(score, 3)
-            if score == 0:
-                haystack = normalize(
-                    " ".join(
-                        str(rec.get(f) or "")
-                        for f in ("name_zh", "name_en", "tag", "trigger", "char_zh", "work")
-                    )
-                )
-                if needle and needle in haystack:
-                    score = 1
+            # 别名（日文名 / 繁简 / 连字符变体）
+            if score < 5:
+                for alias in rec.get("aliases") or []:
+                    value = normalize(alias)
+                    if not value:
+                        continue
+                    if value == needle:
+                        score = max(score, 5)
+                    elif _token_subset(needle_tokens, _word_tokens(alias)):
+                        score = max(score, 4)
+                    elif _cjk_affix_match(needle, value):
+                        score = max(score, 3)
             if score > best_score:
                 best_score = score
                 best = rec

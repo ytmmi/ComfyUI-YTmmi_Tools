@@ -39,6 +39,9 @@ data/
 # 词库构建脚本的中间产物：Comfyui-Anima-Wardrobe-V5 仓库副本（本机临时抓取）
 tools/_v5_src/
 
+# 角色日文名缓存（联网抓取的一次性中间产物，运行时不需要）
+tools/anime_char_names_cache*.json
+
 .omo/
 
 # DSH 沙箱文件权限修复的备份与报告（本地临时产物，不属于插件内容）
