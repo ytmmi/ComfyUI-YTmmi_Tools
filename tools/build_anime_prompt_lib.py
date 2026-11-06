@@ -677,8 +677,97 @@ def _variants(value, converters):
     return out
 
 
+# 社区常用中文别名 → 目标角色。
+#
+# 词库里的官方中文名和社区口头叫法经常不一致（官方「雷姆」/ 社区「蕾姆」，
+# 官方「八意永琳」/ 社区「永琳八曜」，明日方舟干员的外号更是满天飞）。
+# 这里人工维护一张对照表，构建期把别名烘焙进对应角色的 ``aliases`` 字段，
+# 运行时节点直接查表，**不联网**。
+#
+# 目标写法是「角色 tag 里必须出现的片段」（大小写不敏感、下划线当空格）：
+# 这样既能区分同名角色（例如 robin 有崩铁 / 火焰纹章 / summeretto 三条），
+# 又能同时覆盖 Prompt Forge 的 ``xxx (work)`` 与造型台的 ``xxx_(work)`` 两种写法。
+#
+# 只收「目标确实存在且唯一」的条目：
+# - 歧义别名（紫 / 蓝 / 黄 / 爱丽丝 / 博士 / 初雪 …）**不收**，
+#   宁可让用户看到「未命中」，也不要把人导向错误的角色。
+# - 词库里根本没有的角色（红豆 / 阿宽 / 梅洛 / 八雪 …）**不收**，
+#   别名救不了「词库里没有这个角色」这件事。
+COMMUNITY_ALIASES = {
+    # --- re:zero ---
+    "蕾姆": "rem (re:zero",
+    "艾米莉亚": "emilia (re:zero",
+    "艾米丽娅": "emilia (re:zero",
+    # --- 东方 ---
+    "永琳八曜": "yagokoro eirin",
+    # --- 原神 ---
+    "雷神": "raiden shogun",
+    "雷电影": "raiden shogun",
+    "雷鸣": "raiden shogun",
+    "吉良吉影": "kaveh",
+    "温蒂": "venti",
+    # --- 崩铁 ---
+    "歌姬": "robin (honkai",
+    # --- 明日方舟 ---
+    "小莫": "mostima",
+    "蓝天使": "mostima",
+    "卡涅利安": "nearl",
+    "六边形战士": "nearl",
+    "格拉斯": "saria",
+    "莱茵拳皇": "saria",
+    "暴行": "surtr",
+    "银老板": "silverash",
+    "鲨鲨": "specter",
+    "拉狗": "lappland",
+    "蒂蒂": "skadi",
+    "虎鲸": "skadi",
+    "小绵羊": "eyjafjalla",
+    "小火龙": "ifrit|anima_wardrobe_v5",
+    "咕咕": "ptilopsis",
+    "白面": "ptilopsis",
+    "洁哥": "angelina",
+    "安心院": "angelina",
+    "安洁": "angelina",
+    "啊噗路派": "exusiai",
+    "阿能": "exusiai",
+    "鬼姐": "hoshiguma",
+    "推王": "siege",
+    "王小姐": "siege",
+    "猫猫头": "jessica",
+    "富婆": "jessica",
+    "大尾巴狼": "provence",
+    "葬哥": "executor",
+    "小企鹅": "magallan",
+    "阿米驴": "amiya",
+    "小驴子": "amiya",
+    "克天使": "kroos",
+    "天鹅": "blue poison",
+    "小刻": "ceobe",
+    "小闹钟": "astesia",
+    "吉祥物": "swire",
+    "小老虎": "swire",
+    "芙剑圣": "franka",
+    "胖狐狸": "franka",
+    "闪剑圣": "shining",
+    "喜羊羊": "shining",
+    "陈sir": "ch'en (arknights",
+    "老陈": "ch'en (arknights",
+    "龟龟": "w (arknights",
+    "sola酱": "sora (arknights",
+    "爱抖露": "sora (arknights",
+    # --- 碧蓝档案 / NIKKE ---
+    "优妮": "yuni (nikke",
+}
+
+
+def _normalized_tag(rec):
+    """角色 tag 的归一化形式（下划线当空格、小写），用于别名表匹配。"""
+    tag = str(rec.get("tag") or rec.get("name_en") or "").replace("_", " ")
+    return re.sub(r"\s+", " ", tag).strip().lower()
+
+
 def bake_aliases(characters, cache_path):
-    """给角色记录补 ``aliases`` 字段（日文名 / 繁简 / 连字符变体）。
+    """给角色记录补 ``aliases`` 字段（日文名 / 繁简 / 连字符变体 / 社区别名）。
 
     ``cache_path`` 是 ``tools/fetch_anime_char_names.py`` 抓出来的日文名缓存；
     文件不存在时只做繁简 / 连字符变体。
@@ -717,9 +806,20 @@ def bake_aliases(characters, cache_path):
             for variant in _variants(rec.get(field), converters):
                 push(variant)
         # 4) 去掉作品括号的英文名
-        base = re.sub(r"\s*\([^()]*\)\s*$", "", str(rec.get("name_en") or "")).strip()
+        base = re.sub(r"\s*\([^()]*\)\s*$", "", str(rec.get("name_en") or "").strip()).strip()
         if base and base.lower() != str(rec.get("name_en") or "").strip().lower():
             push(base)
+        # 5) 社区中文别名（COMMUNITY_ALIASES 命中本条记录时）
+        rec_tag = _normalized_tag(rec)
+        rec_source = str(rec.get("source") or "")
+        for alias, target in COMMUNITY_ALIASES.items():
+            wanted, _, want_source = target.partition("|")
+            wanted = wanted.strip().lower()
+            if not wanted or wanted not in rec_tag:
+                continue
+            if want_source and want_source.strip() != rec_source:
+                continue
+            push(alias)
 
         # 排除与现有字段完全相同的别名（省空间）
         existing = {
