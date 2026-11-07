@@ -353,14 +353,17 @@ def resolve_level(value):
 def slot_candidates(slot_key, level_num):
     """按档位收敛后的候选池。
 
-    ``level_num >= 99``（不限）时返回全部候选；否则只留 ``level <= level_num`` 的词。
+    ``level_num >= 99``（不限）时返回全部候选；否则只留档位 ``<= level_num`` 的词。
+    词库自带的 ``level`` 由构建脚本正则生成，会漏判大量擦边词（泳装 / 比基尼 /
+    情趣内衣 / 巨乳 / 出汗等都被标成 0），因此这里统一走 ``_tag_level()`` 的
+    三级判定（词库 → 登记表 → 本地启发式），而不是只信词库字段。
     """
     data = tag_slots().get(slot_key)
     if not data:
         return []
     items = data.get("items", [])
     if level_num is not None and level_num < 99:
-        items = [it for it in items if int(it.get("level", 0)) <= level_num]
+        items = [it for it in items if _tag_level(it.get("en", "")) <= level_num]
     return items
 
 
@@ -643,8 +646,12 @@ def _level_index():
         for slot in tag_slots().values():
             for item in slot.get("items", []):
                 key = normalize(item.get("en"))
-                if key and key not in idx:
-                    idx[key] = int(item.get("level", 0))
+                if not key:
+                    continue
+                # 同一英文标签可能出现在多个槽位且档位不同（例如 heart-shaped
+                # pupils 在 face 是 0、在 pose 是 3）。取最高档，否则全年龄档会
+                # 因为「首写胜出」抽到实际属于高等级的词。
+                idx[key] = max(idx.get(key, 0), int(item.get("level", 0)))
         _CACHE["__level_index__"] = idx
     return idx
 
@@ -652,20 +659,26 @@ def _level_index():
 def _tag_level(tag):
     """查标签的 NSFW 档位。
 
-    优先级：① 本插件词库条目自带的 ``level``（构建时 = max(造型台登记, 自研判定)）
-    → ② 造型台登记的 ``tag_levels`` → ③ 本地启发式兜底。
-    查不到按 0（全年龄）算。
+    取「词库 / 登记表里登记的基础档位」与「本地启发式判定」的**较大者**。
+
+    词库自带的 ``level`` 由构建脚本正则生成，会漏判大量擦边词（泳装 / 情趣内衣 /
+    巨乳等被标成 0）；如果像旧实现那样「首命中即返回」，一个 0 档词库条目会直接
+    遮蔽登记表里的非 0 档和本地启发式的判定，让全年龄档漏出成人词。故这里把本地
+    启发式作为**兜底底线**，无论基础档位来自词库还是登记表，都再与它取 max。
+
+    注意：登记表本身含噪声（``1girl`` 被登记成 4、`pov` 3、`trembling` 3 等），
+    所以**不**把登记表无条件 max 进基础档位——只有关键词库里根本没有、才退而
+    使用登记表的值；本地启发式专门针对明显成人词，不会误伤这些中性词。
     """
     key = normalize(tag)
     if not key:
         return 0
-    level = _level_index().get(key)
-    if level is not None:
-        return level
-    registered = tag_levels().get(key)
-    if registered is not None:
-        return int(registered)
-    return _local_grade(tag)
+    base = _level_index().get(key)
+    if base is None:
+        base = tag_levels().get(key)
+    if base is None:
+        return _local_grade(tag)
+    return max(int(base), _local_grade(tag))
 
 
 def _level_ok(tag, level_num):
@@ -676,19 +689,33 @@ def _level_ok(tag, level_num):
 
 
 # 本地启发式：词库里没登记过的标签（如场景搭配的 extra）用它判档
+# 词库由构建脚本的正则判档，但它漏掉了大量 NSFW 词（泳装 / 比基尼 / 情趣内衣 /
+# 巨乳 / 臀部特写 / 出汗 等被标成 level=0），全年龄档因此照常输出成人内容。
+# 外部数据源缺失、词库不可重建 → 这些补判必须落在运行时启发式里。
+# 注意：新增词一律用「精确词」或带上下文的组合，避免误伤中性词
+#（``analog photo`` 含 ``anal``、``hololive`` 含 ``loli``、``gothic lolita`` 含 ``loli``）。
+# 整组用 \b(...)\b 包住，单个词都是「独立单词」匹配，不会误伤
+# ``analog photo`` / ``hololive`` / ``gothic lolita`` / ``class`` 这类中性词。
 _LOCAL_EXPLICIT = re.compile(
     r"\b(nude|naked|topless|bottomless|nipples?|areola|pussy|vagina|penis|anal|"
     r"cum|semen|masturbat\w*|fellatio|cunnilingus|handjob|paizuri|dildo|vibrator|"
     r"bondage|shibari|slut|whore|creampie|panties|nsfw|explicit|pasties|cameltoe|"
     r"pubic hair|underboob|sideboob|crotchless|upskirt|genitals|sex\w*|fuck\w*|"
-    r"loli|lolicon|childlike)\b",
+    r"loli|lolicon|childlike|"
+    # 构建脚本正则漏判、词库里被错标成 level=0 的成人向词
+    r"ass|butt|lingerie|ecchi|gigantic breasts|gigantic tits|"
+    r"heart-shaped pupils|exposed breasts?|breasts? out|one breast out)\b",
     re.I,
 )
 _LOCAL_SUGGESTIVE = re.compile(
     r"\b(see-through|transparent|translucent|sheer|revealing|cleavage|unbuttoned|"
     r"open shirt|open jacket|large breasts?|big breasts?|huge breasts?|"
     r"medium breasts?|small breasts?|thighhighs|stockings|thigh strap|"
-    r"wet clothes|wet shirt|strapless|short skirt|miniskirt|sensitive)\b",
+    r"wet clothes|wet shirt|strapless|short skirt|miniskirt|sensitive|"
+    # 构建脚本正则漏判、词库里被错标成 level=0 的擦边词
+    r"swimsuits?|bikinis?|swim shorts|wetsuit|"
+    r"sweating|sweatdrop|wet hair|wet body|"
+    r"garter belt|garter straps|corset|babydoll|pantyhose|chemise|underwear|bra)\b",
     re.I,
 )
 
@@ -833,7 +860,10 @@ class AnimeRandomPromptNode:
             report_lines.append("[%s] 指定「%s」不在词库中 → 退回随机" % (label, value))
             return self._resolve_slot(slot_key, RANDOM_LABEL, rng, level_num, report_lines)
 
-        level = int(found.get("level", 0))
+        # 与候选池一致：用 _tag_level() 的三级判定，而不是只信词库自带的
+        # level 字段（该字段会漏判泳装 / 情趣内衣 / 巨乳等词，导致用户在
+        # 全年龄档显式指定这些词时仍被放行）。
+        level = _tag_level(english)
         if level_num is not None and level_num < 99 and level > level_num:
             report_lines.append(
                 "[%s] 指定「%s」超出当前分级（需要 L%d）→ 已忽略，改随机"
@@ -990,7 +1020,29 @@ class AnimeRandomPromptNode:
             if tag and tag not in parts:
                 parts.append(tag)
 
-        positive = ", ".join(parts)
+        # --- 统一总闸：拼串前逐段复核每个逗号子标签的档位 ---
+        # 角色 trigger / 质量前缀 / 场景 extra / 画师 @标签 都会以「整串」进入
+        # parts（例如 "shiroko (swimsuit), blue archive"、"masterpiece, ...,
+        # safe"）。候选池与各条独立通路虽已各自设闸，但角色 trigger 是第四条
+        # 未守闸通路、且整串因含逗号/括号查不到任何词表会被一律判 0 档。故在
+        # 最终拼串前把每个 part 先按逗号拆成子标签，逐段 _level_ok() 复核，
+        # 剔除超档子标签并写入报告；未超档的子标签原样拼回（保证质量前缀等
+        # 整串输出的字面值不发生变化）。
+        if level_num is None or level_num >= 99:
+            gated_parts = list(parts)
+        else:
+            gated_parts = []
+            for part in parts:
+                kept = []
+                for sub in split_tags(part):
+                    if not _level_ok(sub, level_num):
+                        report_lines.append("[分级闸门] 已剔除超档标签「%s」" % sub)
+                        continue
+                    kept.append(sub)
+                if kept:
+                    gated_parts.append(", ".join(kept))
+
+        positive = ", ".join(gated_parts)
 
         # --- 负向提示词 ---
         negatives = list(BASELINE_NEGATIVES)
@@ -1006,7 +1058,7 @@ class AnimeRandomPromptNode:
         negative = ", ".join(negatives)
 
         report_lines.append("")
-        report_lines.append("正向标签数：%d" % len(parts))
+        report_lines.append("正向标签数：%d" % len(gated_parts))
         report_lines.append("负向标签数：%d" % len(negatives))
         report = "\n".join(report_lines)
 
