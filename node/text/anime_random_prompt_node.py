@@ -1,5 +1,5 @@
-# 随机提示词(Anime)
-"""随机提示词(Anime)节点。
+# 随机提示词(Anime)-beta
+"""随机提示词(Anime)-beta 节点。
 
 用**参数配置（下拉）+ 文本输入命中**两种方式，从合并词库里随机生成 Anima 用的
 英文 Danbooru 标签提示词。
@@ -55,7 +55,7 @@ def _load_json(path):
     if key not in _CACHE:
         if not os.path.isfile(path):
             raise FileNotFoundError(
-                "随机提示词(Anime) 缺少词库文件：%s\n"
+                "随机提示词(Anime)-beta 缺少词库文件：%s\n"
                 "请用 tools/build_anime_prompt_lib.py 重建词库。" % path
             )
         with open(path, "r", encoding="utf-8") as fh:
@@ -752,7 +752,7 @@ def split_tags(text):
 
 
 class AnimeRandomPromptNode:
-    """随机提示词(Anime)：按分级 + 参数配置 + 角色文本命中生成 Anima 提示词。"""
+    """随机提示词(Anime)-beta：按分级 + 参数配置 + 角色文本命中生成 Anima 提示词。"""
 
     CATEGORY = "YTmmi/text"
     DESCRIPTION = (
@@ -799,6 +799,7 @@ class AnimeRandomPromptNode:
         "random prompt",
         "随机提示词",
         "随机提示词(Anime)",
+        "随机提示词(Anime)-beta",
         "anima prompt",
         "danbooru tags",
         "动漫提示词",
@@ -1070,7 +1071,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "AnimeRandomPromptNode": "随机提示词(Anime)",
+    "AnimeRandomPromptNode": "随机提示词(Anime)-beta",
 }
 
 __all__ = [

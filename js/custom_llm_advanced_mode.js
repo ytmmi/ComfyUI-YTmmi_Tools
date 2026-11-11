@@ -12,7 +12,7 @@ import { app } from "../../scripts/app.js";
  * control_after_generate 下拉）+ 图片输入端口（是端口不是 widget，不受影响）。
  * 打开「高级」后显示全部参数。
  *
- * 隐藏方式与「随机提示词(Anime)」的「详细程度」开关、以及 ComfyUI 官方扩展
+ * 隐藏方式与「随机提示词(Anime)-beta」的「详细程度」开关、以及 ComfyUI 官方扩展
  * 一致：同时写 `widget.hidden` 与 `widget.options.hidden`。
  * 前端 `deriveWidgetVisibility()` 读 `hidden ?? options.hidden`，
  * `applyLegacyHiddenWrite()` 把它写进 `suppression.byExtension`，
