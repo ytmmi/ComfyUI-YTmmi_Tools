@@ -1,7 +1,7 @@
 ---
 name: anima-color-harmony
 description: Design and enforce one coherent colour scheme in Anima prompts — hue relationships (monochrome, analogous, complementary, split-complementary, triadic), warm/cool structure, value and saturation balance, subject-versus-background colour separation, and the colour of the light. Use when an Anima render comes out muddy, clashing, washed out, all one note or "cheap looking", when a poster or key visual needs a deliberate palette, or when the user asks for a mood colour such as pastel, neon, sepia, duotone or teal-and-orange.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Anima 配色与颜色搭配（Color Harmony）
@@ -18,6 +18,11 @@ Anima 是"泛二次元"模型：**你不指定配色，它每次都会自己配�
 `references/anima-color-vocabulary.md` 拿颜色词表、七套配色骨架、情绪 → 配色对照表、
 暗部环境色 / 大气透视 / 双色调调色写法与失败修法。
 本文件讲决策与流程。
+
+**本 skill 是 Anima 专用增量。** 模型无关的通用配色工艺（色彩关系 / 明度与饱和度结构 /
+主体与背景分色 / 光的颜色 / 暗部环境色 / 大气透视）见通用 skill `image-color-harmony`——它承载与
+具体模型无关的图像工艺，在**所有模式下都会并入清单**，建议先读它拿决策与流程，再用本文件补 Anima
+特有的标签写法、权重语法与 `anima-style-control` 的分工。两者冲突时，标签语法以本文件为准。
 
 ## 输出契约
 

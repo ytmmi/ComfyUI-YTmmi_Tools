@@ -1,7 +1,7 @@
 ---
 name: anima-composition-optimize
 description: Fix and design framing in Anima prompts with shot size, camera angle, view direction, subject placement, visual hierarchy, depth layering and negative space. Use when an Anima render puts the subject too small, centers everything, lets characters overlap without hierarchy or lets the background steal focus, and when a portrait, poster/key-visual, group shot or scenery-led image needs its framing rebuilt from prompt text alone.
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Anima 构图优化（Composition Optimization）
@@ -13,6 +13,11 @@ version: 1.2.0
 读共同基准 `anima-prompt-format/references/anima-prompt-baseline.md` 拿官方标签顺序与硬规则，读
 `references/anima-composition-vocabulary.md` 拿完整的景别 × 机位 × 位置 × 分层 × 取景装置词表
 与四类产出的构图配方。本文件讲判断与流程。
+
+**本 skill 是 Anima 专用增量。** 模型无关的通用构图工艺（景别 / 机位 / 朝向 /
+主体位置 / 景深分层 / 负空间 / 特殊镜头）见通用 skill `image-composition`——它承载与具体模型
+无关的图像工艺，在**所有模式下都会并入清单**，建议先读它拿判断与流程，再用本文件补 Anima 特有的
+标签语法、权重写法与共同基准约束。两者冲突时，标签语法与权重以本文件为准。
 
 标 † 的词更适合放进自然语言句子（靠 caption 语义生效）；其余可以直接当 `general` 段标签用。
 

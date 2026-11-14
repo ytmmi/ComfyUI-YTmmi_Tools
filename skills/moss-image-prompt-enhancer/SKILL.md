@@ -1,7 +1,7 @@
 ---
 name: moss-image-prompt-enhancer
 description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Use for prompt enhancement, image composition and text placement; this skill does not generate images.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # MOSS-Image Prompt Enhancer
@@ -13,10 +13,19 @@ No Echidna service, model API or third-party Python dependency is needed.
 
 ## Choose the deliverable
 
-Honor an explicit request for a caption or Layout. Otherwise use a caption for
-ordinary scenes, photographs and illustrations. Use Layout when specific text
-placement, a poster, several panels, or controlled object relationships would
-benefit from bounding boxes. A detailed image does not automatically need Layout.
+Honor an explicit request for a caption or Layout. **Otherwise default to Layout**
+— the JSON form whose core idea is **a global description plus local boxes**:
+`summary.caption` carries the global description of the whole image, and the flat
+`items` array places each local unit in its own bounding box. Keeping the global
+reading and the local placement decisions in one artifact matches how MOSS-Image
+conditions on layout, so Layout is the default deliverable.
+
+Fall back to a caption only when the user explicitly asks for a caption / plain
+prose, or when the image is a single undivided unit with nothing to place relative
+to anything else (a plain portrait, a texture, one object on a plain background)
+and a box would add no information. The choice is about placement, not about
+detail: a rich multi-element image uses Layout, and a simple image still uses
+Layout whenever anything must sit in a specific spot.
 
 Preserve the user's subjects, counts, relationships, medium, style, exclusions
 and intended visible wording. Resolve ordinary creative gaps yourself; ask only

@@ -1,6 +1,6 @@
 display-name-zh: MOSS-Image 图像提示词增强
 display-name-en: MOSS-Image Prompt Enhancer
-version: 1.1.0
+version: 1.2.0
 tag-cn: 提示词 / 图像 / MOSS-Image
 tag-en: Prompt / Image / MOSS-Image
 summary-cn: 把图像创意扩写成 MOSS-Image caption 或像素级 Layout，并用随附脚本编译成可直接粘贴的提示词；二次元 / IP 同人 / 海报 / 漫画需求请改用 moss-anime-prompt-template。

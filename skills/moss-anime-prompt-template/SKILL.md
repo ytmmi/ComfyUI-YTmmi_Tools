@@ -1,7 +1,7 @@
 ---
 name: moss-anime-prompt-template
 description: 把二次元人物、IP 同人、场景插画、多人互动、海报与漫画需求写成 MOSS-Image-Base / MOSS-Image-SFT 可直接使用的正向提示词（Caption / Tag / Layout 三种交付），内置画风独立首句、人数与属性绑定、镜头与空间、光照因果、Layout 字段与坐标换算等硬规则。仅做提示词改写，不生成图片、不调用外部 API。
-version: 1.0.0
+version: 1.1.0
 ---
 
 # MOSS 二次元提示词模板（sfw 版）
@@ -24,13 +24,13 @@ version: 1.0.0
 **只输出最终正向提示词正文本身**，不复述规则、不展示内部规划表、不加开头说明或结尾建议、
 不加 Markdown 代码块围栏（除非用户明确要 JSON 便于复制）。
 
-三种交付形态，先按 §2 决策树选：
+三种交付形态，**默认 Layout**，先按 §2 决策树确认：
 
 | 用户要的结果 | 正向框真正接收什么 | 其他信息放哪 |
 |---|---|---|
-| 普通插画 Caption | 连贯纯文本（英文默认，中文按需） | 必要说明在正文之外 |
-| Tag 串 | 逗号分隔的有效内容词 | 不加权重、不加分角色/区域扩展语法 |
-| Layout | 单行紧凑 JSON（`abs_centralized` / `yxyx`） | **必须在提示词外注明出图尺寸**，并保留草稿 |
+| **Layout（默认形态）** | 单行紧凑 JSON（`abs_centralized` / `yxyx`）；`summary.caption` 写整图全局描述，扁平 `items` 写每个局部单元的方框 | **必须在提示词外注明出图尺寸**，并保留草稿 |
+| 普通插画 Caption（退化形态） | 连贯纯文本（英文默认，中文按需）；仅在用户明确要普通文本或画面无可定位单元时使用 | 必要说明在正文之外 |
+| Tag 串（用户明确指定） | 逗号分隔的有效内容词 | 不加权重、不加分角色/区域扩展语法 |
 
 ### 语言（先判语言，再动笔）
 
@@ -84,38 +84,40 @@ version: 1.0.0
 
 ## §2 格式选择决策树
 
-先服从用户明确指定的 Caption / Tag / Layout，再处理未指定的情况。
+先服从用户明确指定的 Caption / Tag / Layout；用户没有明确指定时，**默认 Layout**。
 
 ```text
-是否明确要坐标框 / Layout / 指定区域排版？
-  是 → Layout；先确定画布，再写草稿并编译。
-  否 → 是否需要多处独立文字或图块的位置、比例和阅读顺序？
-          是 → 优先 Layout。
-          否 → 是否只是「左边一个人、右边一扇窗」等大致空间关系？
-                  是 → 先用 Caption；需要固定占比时再升级 Layout。
-                  否 → 普通人物、美学场景、姿势与角色创作默认 Caption。
+用户是否明确指定 Caption / Tag / Layout？
+  是 → 按用户指定交付；Layout 先确定画布，再写草稿并编译。
+  否 → 画面是否是单一不可分单元（纯人物肖像 / 纯材质 / 纯背景），
+       没有任何需要落位的局部？
+         是 → 退化为 Caption（用户明确要标签串时用 Tag）。
+         否 → 默认 Layout：summary.caption 写整图全局描述，
+              扁平 items 为每个局部单元写 bbox 方框；先确定画布，再写草稿并编译。
 ```
 
 | 需求 | 默认选择 | 判断理由 |
 |---|---|---|
-| 角色在玻璃温室里听歌，脸部有窗光 | Caption | 重点是角色、光影和气氛，位置无需数字框 |
-| 广角海底遗迹、复杂透视、飞行战斗 | Caption | 场景复杂不等于需要坐标；透视和受力仍靠描述 |
-| 两人交谈，大致左右站位 | Caption | 两段独立人物描述通常足够，先不增加坐标负担 |
+| 角色在玻璃温室里听歌，脸部有窗光 | Layout | 默认 Layout；人物是可定位单元，用全局描述加人物框 |
+| 广角海底遗迹、复杂透视、飞行战斗 | Layout | 默认 Layout；可定位单元多，透视与受力仍靠描述 |
+| 两人交谈，大致左右站位 | Layout | 默认 Layout；两人各给一个框，大致左右关系由框落实 |
 | 左右两人必须占指定区域，中间留箱子 | Layout | 人物与道具的占位、比例是主要约束 |
-| 单句文字写在人物手中卡片上，位置不严格 | Caption | 写清载体和实际文字即可 |
+| 单句文字写在人物手中卡片上，位置不严格 | Layout | 默认 Layout；文字项用全图坐标落位 |
 | 上方标题、右侧三行文案、左侧人物 | Layout | 多个独立信息块需要层级与位置 |
 | 二格/四格漫画，各格动作不同 | Layout | 每格及文字需全局规划；不保证跨格脸一致 |
 | 只改图中文字或只移动一个对象 | Layout 可规划新生成 | 改 JSON 后是重新生成，不是局部图像编辑 |
-| 用户只想把提示词存成 JSON 文件 | Caption 草稿也可用 JSON 存储 | 这是文件包装，不等于启用 Layout |
-| 左右手错、手指错、表情不对 | 先修 Caption 的语义与动作 | bbox 不描述手部关节，不是姿态骨架 |
+| 用户只想把提示词存成 JSON 文件 | Layout 草稿存储；仅纯文本包装时用 Caption 草稿 | 这是文件包装，不改变所选交付形态 |
+| 纯人物肖像 / 纯材质 / 纯背景，无可定位局部 | Caption（退化） | 画面是单一不可分单元，方框不增加信息 |
+| 用户明确要普通文本提示词或标签串 | Caption / Tag（用户指定） | 服从用户明确指定的交付形态 |
+| 左右手错、手指错、表情不对 | 先修语义与动作（各种形态） | bbox 不描述手部关节，不是姿态骨架 |
 | 想要更好看但没有位置约束 | 先完善美术设计 | JSON 不是美学增强开关 |
 
-**不应自动切 Layout**：仅仅因为提示词长、角色知名、画面细节多、想要电影感、单人动作复杂、
-需要手指准确，都不构成切 Layout 的理由。用户要极简立绘时也不强行增加标题、页脚、装饰模块。
-大致左右关系直接写自然语言即可。
+**不应无故退化为 Caption**：仅仅因为提示词短、单人体、角色知名、画面细节多、想要电影感、
+单人动作复杂、需要手指准确，都不构成退化为 Caption 的理由。用户要极简立绘时也不强行增加标题、
+页脚、装饰模块；只有画面确实没有可定位单元时才退化，大致左右关系仍先由方框落实。
 
-**草稿与最终提示词是两种东西**：普通 Caption 输出纯文本即可；若用 `{"caption":"..."}` 保存
-描述，真正的提示词是其中的文本值。Layout 的左上角像素草稿与中心坐标成稿不可混用（见 §12）。
+**草稿与最终提示词是两种东西**：Layout 的左上角像素草稿与中心坐标成稿不可混用（见 §12）；
+退化用 Caption 时直接输出纯文本即可，若用 `{"caption":"..."}` 保存描述，真正的提示词是其中的文本值。
 
 ## §3 需求解析与默认补全
 
@@ -131,8 +133,8 @@ version: 1.0.0
 | 环境 | 地点、近中远景、接触面、道具 | 原创时补具体场所；极简需求保持简洁 |
 | 美术 | 媒介、主色、主光、阴影、材质 | 选择相容方案，不把所有炫光效果一起叠加 |
 | 可见文字 | 真正要印出的文字、载体、位置、换行 | 没有明确印字需求不自创标题、署名或广告文案 |
-| 格式/语言 | Caption/Tag/Layout，英文/中文/双语 | Caption + 英文 |
-| 尺寸 | 用户指定尺寸或宽高比 | Layout 必须落实尺寸；无指定通常 1024×1024 |
+| 格式/语言 | Layout/Caption/Tag，英文/中文/双语 | 默认 Layout + 英文；仅用户明确要文本/标签或画面无可定位单元时才用 Caption/Tag |
+| 尺寸 | 用户指定尺寸或宽高比 | Layout 必须落实尺寸；无指定通常 1024×1024，且必须是 16 的正整数倍 |
 
 用户已给的硬约束优先于默认值。只有缺失项会**实质改变任务**时才澄清（例如「单张还是四格」、
 「用户指定尺寸不符合 16 倍数」）。普通发型、背景小道具与相容光照可自行合理补全。
@@ -406,8 +408,9 @@ Layout 是**结构化提示词**。框表达目标占位，不是硬裁切、姿
 **双人/多人**：summary 写精确人数、整体关系和相容光照；每个 character caption 自带发色发型、
 衣服主色、动作、视线，主语如「左侧短红发女性」要与它的 bbox 一致。交接动作涉及同一个道具：
 若道具单列 object，应把其框放在交互区，并写两人分别「递出」和「接向」该同一件物体，不能写
-每人都各握一个独立盒子。精细手部仍可能失败，bbox 不是骨架。只要要求大致左右、自然对话，
-Caption 就可用；需要严格占位比例、留出中间文字区、两人不能互相挡脸等再选 Layout。
+每人都各握一个独立盒子。精细手部仍可能失败，bbox 不是骨架。默认用 Layout 为两人各写一个 character 框，summary 交代精确人数、整体关系和相容光照。
+只有画面确实没有可定位单元（例如两人本就是单一不可分单元）或用户明确要普通文本时才退化为 Caption，
+并用自然语言写大致左右关系；需要严格占位比例、留出中间文字区、两人不能互相挡脸时必须用 Layout。
 
 **文字项**：真正印字用 `label="text"`、`text` 保存原文，`caption` 描述字的颜色、大小层级、
 字体倾向、载体。**不能只写「这里是标题」让模型自己编文案。**独立排版的标题、正文、脚注分成
@@ -468,7 +471,7 @@ Caption 就可用；需要严格占位比例、留出中间文字区、两人不
 
 ## §15 输出前检查（内部执行，不写进输出）
 
-1. **语言与交付**：英文默认；指定中文或双语时正确切换；每份都是完整正向内容。
+1. **语言与交付**：英文默认；指定中文或双语时正确切换；默认交付 Layout（summary.caption 全局描述 + 扁平 items 局部方框），仅在用户明确要文本/标签或画面无可定位单元时退化为 Caption/Tag；每份都是完整正向内容。
 2. **画风**：仅有一条**独立首句**，遵守「用户画风/参考图 → 表现方式 → 题材默认」优先级。
 3. **身份与实例**：名字、作品、形态、衣装和关键锚点一致；人数、镜像、屏幕人物、跨格重复实例不混淆。
 4. **归属与接触**：每人属性有独立主语（**按角色分组**，不交叉）；手部、道具、支撑/悬空、
@@ -489,13 +492,7 @@ Caption 就可用；需要严格占位比例、留出中间文字区、两人不
 
 ## §16 示例（节选，完整双语示例见 references）
 
-**IP 角色与环境插画（Caption，英文）**：
-
-```text
-A Japanese anime half-body illustration with colored linework and layered cel shading. Hatsune Miku from Vocaloid, with turquoise eyes, long turquoise twin-tails, black-and-red rectangular hair ornaments, a headset microphone, a gray collared top, turquoise tie and black detached sleeves. She stands inside a glass conservatory, lightly touching one earpiece and smiling as she listens to a melody. Three-quarter frontal view at eye level, her eyes and expression are the focal point. A soft foreground fern overlaps the lower frame; glass ribs recede diagonally behind her toward pale flowers. Warm morning light enters from the high left window and models the near cheek and loose hair strands. The far cheek and neck keep a gentle cool shadow, with a small catchlight in the eyes following the window. Distinguish matte fabric, metallic costume accents, glass reflections and nearby dew. Keep the setting quiet and complete, with no title or signature.
-```
-
-**多人区域布局（Layout 成稿，画布 1536×1024，尺寸在提示词外注明）**：
+**多人区域布局（Layout 成稿，主默认示例，画布 1536×1024，尺寸在提示词外注明）**：
 
 ```json
 {"summary":{"caption":"A Japanese anime illustration with colored linework and layered cel shading. A station scene with exactly two women and one green suitcase between them. Full-body composition, no bystanders. A timber canopy and platform edge recede toward a distant empty track. Warm morning light enters from the left, with cool roof shadows and thin mist in the distance. Keep the faces readable and the floor beneath both figures clear.","meta":["anime illustration"],"canvas":"single"},"items":[{"label":"character","caption":"The short red-haired woman on the left wears a blue jacket and black trousers. She stands with both feet on the platform and points gently toward the suitcase, looking at the woman opposite her.","bbox":[-332,-668,448,-168]},{"label":"character","caption":"The taller black-haired woman on the right wears a yellow coat and white trousers. She stands on the platform with relaxed hands, looking toward the same suitcase with a thoughtful expression.","bbox":[-332,168,448,668]},{"label":"object","caption":"One green suitcase standing upright on the floor between the two women, with a single handle and a soft contact shadow.","bbox":[178,-108,398,108]}],"bbox_coord_space":"abs_centralized","bbox_format":"yxyx"}
@@ -505,6 +502,12 @@ A Japanese anime half-body illustration with colored linework and layered cel sh
 
 ```json
 {"summary":{"caption":"A Japanese anime poster with clean shapes and restrained colors. A cafe poster with a cream background, a red cup on the left, a blue gift box on the right and a dark green Chinese title above them.","meta":["anime illustration","poster"],"canvas":"single"},"items":[{"label":"text","caption":"Large dark green Chinese title centered near the top, readable lettering with open space around it.","bbox":[-464,-352,-312,352],"text":"星海咖啡"},{"label":"object","caption":"One red ceramic cup with its handle pointing right, sitting on the cream surface with a soft contact shadow.","bbox":[-192,-412,248,-72]},{"label":"object","caption":"One small blue gift box wrapped with a yellow ribbon, with its own soft contact shadow.","bbox":[-192,72,248,412]}],"bbox_coord_space":"abs_centralized","bbox_format":"yxyx"}
+```
+
+**纯文本 Caption（退化形态：仅在用户明确要文本，或画面是无可定位单元的纯人物肖像 / 纯材质 / 纯背景时使用）**：
+
+```text
+A Japanese anime half-body illustration with colored linework and layered cel shading. Hatsune Miku from Vocaloid, with turquoise eyes, long turquoise twin-tails, black-and-red rectangular hair ornaments, a headset microphone, a gray collared top, turquoise tie and black detached sleeves. She stands inside a glass conservatory, lightly touching one earpiece and smiling as she listens to a melody. Three-quarter frontal view at eye level, her eyes and expression are the focal point. A soft foreground fern overlaps the lower frame; glass ribs recede diagonally behind her toward pale flowers. Warm morning light enters from the high left window and models the near cheek and loose hair strands. The far cheek and neck keep a gentle cool shadow, with a small catchlight in the eyes following the window. Distinguish matte fabric, metallic costume accents, glass reflections and nearby dew. Keep the setting quiet and complete, with no title or signature.
 ```
 
 ## 交付前最后一步
