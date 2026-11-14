@@ -1,0 +1,8 @@
+display-name-zh: 图像画师串（仅二次元）
+display-name-en: Image Artist String (anime only)
+version: 1.0.0
+tag-cn: 提示词 / 画师 / 风格 / 二次元
+tag-en: Prompt / Artist / Style / Anime
+summary-cn: 讲清二次元「画师串」的构建方法：何时该用、几个画师、各模型家族的权重语法、位置与转义、主次混合、负面词与风格 LoRA 的冲突清理、可复现性。仅二次元风格生效。
+summary-en: How to build an anime artist string: when to use one, how many artists to chain, per-model weight syntax, position and escaping, dominant/accent mixing, conflict cleanup with negatives and style LoRAs, and reproducibility. Anime styles only.
+source: web

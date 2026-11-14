@@ -1,7 +1,7 @@
 ---
 name: moss-image-prompt-enhancer
 description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Use for prompt enhancement, image composition and text placement; this skill does not generate images.
-version: 1.2.0
+version: 1.2.1
 ---
 
 # MOSS-Image Prompt Enhancer
@@ -19,6 +19,12 @@ Honor an explicit request for a caption or Layout. **Otherwise default to Layout
 `items` array places each local unit in its own bounding box. Keeping the global
 reading and the local placement decisions in one artifact matches how MOSS-Image
 conditions on layout, so Layout is the default deliverable.
+
+Upstream MOSS-Image leaves this choice to the user and falls back to a caption for
+ordinary scenes, photography and illustration, reserving Layout for text placement,
+posters, multi-panel compositions and controlled object relations. This repository
+keeps Layout as the default on purpose: the local workflow consumes placement, so a
+caption is the fallback rather than the norm. Everything else below follows upstream.
 
 Fall back to a caption only when the user explicitly asks for a caption / plain
 prose, or when the image is a single undivided unit with nothing to place relative
@@ -93,6 +99,18 @@ Use the same width and height in the image-generation workflow.
 
 Use boxes for coherent visible units, splitting only when independent placement
 matters. Grouping should preserve content and relationships, not erase them.
+
+Item granularity, in practice:
+
+- Split only when the parts must be placed **independently** — a title, a body block
+  and a footer each become their own `text` item when their position and size are
+  decided separately;
+- Keep units that always move, scale or occlude **together** in one item (a character
+  plus the prop they hold, a logo lockup, a caption plus its rule);
+- Do not box every object for completeness: extra boxes fragment the layout and invite
+  the model to draw borders around things that should read as one image;
+- A `text` item carries the exact visible characters; if two strings must be typeset
+  separately, they are two items rather than one string with a line break.
 Natural occlusion and overlap are allowed. A box is a placement annotation,
 not an instruction to draw a border, panel or sticker. Describe appearance in
 captions and global treatment in `summary.caption`; let boxes agree with any

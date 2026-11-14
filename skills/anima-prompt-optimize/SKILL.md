@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-optimize
 description: Diagnose and repair an existing Anima prompt, covering tag order, underscore and spacing errors, missing subject count, a contradictory medium, overstuffed synonyms, a quality prefix that does not match the model version, a missing safety tag and vague four-word prompts. Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI when a prompt already exists but renders badly.
-version: 1.2.1
+version: 1.3.0
 ---
 
 # Anima 提示词优化（Prompt Optimize）
@@ -90,6 +90,20 @@ version: 1.2.1
 | caption 少于 2 句 | 纯自然语言时至少 2 句，过短会出意外内容 |
 | 描述的是"生成过程" | 改写成"最终画面"（删 `then` `after that` 类时序词） |
 | 抽象形容词 | `cool` `nice` `beautiful` `amazing` → 翻译成可执行决策（冷色调 / 低角度 / 高对比），译不出就删 |
+| 外观维度只写泛称 | 泛称会被默认先验覆盖（`long hair` 常画成中分短发）：每个外观维度写**具体值**（`long straight black hair, blunt bangs`），发型 / 发色 / 眼睛 / 服装各至少一处 |
+| 状态转换只写结果 | 只写"杯子碎了"可能给出一只完整的杯子：改成结构句——**原位已空 + 落点在场**（`the spot on the table where the cup stood is empty; shards scattered across the floor`） |
+| 用程度副词代替范围 | `very strong wind` 会被忽略：写**受影响的范围与后果**（`hair blown back, coat flapping, papers scattering across the street`） |
+| 用「不要 X」当约束 | 否定常被忽略甚至反向激活：把"不要 X"**正面编码**成你要的 Y（要短发就写短发，别写"不要长发"） |
+| 一张图写了一串动作 | 组装式模型不融合多帧：只留 **1 个主导动作**，其余删掉，或改写成姿态与痕迹（扬尘、被压弯的草） |
+
+**诊断依据：组装式模型的三条公理**（具体性问题的根因都在这里）
+
+1. **组装式模型**：写了什么就有对应零件，但零件**不会自动融合**——一张图只给 1 个主导动作；
+   抽象状态（"很累""很生气"）要换成**具象的物理状态**（肩膀塌下、领口汗湿、指节发白）；
+   环境情绪交给自然语言氛围句。同时要求拔刀 + 跳跃 + 落地，只会得到其中一个，或糊成一团。
+2. **强先验吞弱信号**：泛称、弱形容词、程度副词会被默认先验覆盖；每个外观维度写具体值、
+   状态转换写结构句、范围即强度、"不要 X"正面编码，都是这一条的落地。
+3. **字面化一切**：模型只画字面上写出来的东西——"温馨的氛围"不会自动带来暖灯与靠垫，要写出来。
 
 ### 5. 冲突检查
 
@@ -142,6 +156,9 @@ version: 1.2.1
 球面构图、`extreme foreshortening` 极端透视、`isometric` 等距版式、`panorama` 全景等，
 见 `anima-composition-optimize`），不要永远停在最保守的默认景别上；但用户已指定构图时**绝不覆盖**，
 且一次只用**一个**特殊装置（表格类 / 三视图 / 分镜场景禁用）。
+
+**负面词按「意图预测」写，不要背固定清单**：先用一句话预测这张图最可能画歪的地方（手部结构、多手指、
+背景塌成糊、画的不是同一个角色），再只写对应的那几条。清单越长，真正该压的那条越容易被稀释。
 
 **裁剪顺序**（从最先砍到最不该砍）：
 

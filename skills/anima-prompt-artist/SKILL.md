@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-artist
 description: Write Anima artist tags correctly (`@artist` is mandatory, otherwise the effect is very weak), anchor a single-artist style, mix two or three artists by weight, and describe a style safely without any artist name. Use when an Anima prompt needs a specific artist style, when a user-supplied artist name seems to be ignored, when two artists must be blended into one coherent look, or when the user has no artist in mind and only wants to describe a style.
-version: 1.1.1
+version: 1.2.0
 ---
 
 # Anima 画师标签与混合（Artist Tags & Mixing）
@@ -20,6 +20,11 @@ Anima 的画师标签是**最强的单一风格杠杆**：一个画师标签带�
 
 > 取景对抗漂移、权重预算（全文 ≤4 个加权标签）、Hybrid 三层结构、因果链等高杠杆规则，
 > 见 `anima-prompt-format` 的「高杠杆规则」一节与共同基准；本文件只专攻画师这一层。
+>
+> 本文件相对通用版是**增量**：与模型无关的画师串构建法（模型语法对照、1~3 个画师的
+> 数量决策、权重主次与融合、位置与顺序、名字转义、与负面词 / 风格 LoRA 的冲突清理、
+> 可复现性记录）见通用 skill `image-artist-chain`；本文件只补 Anima 专属的 `@` 前缀
+> 硬规则与家族权重档位。
 
 ## 输出契约
 

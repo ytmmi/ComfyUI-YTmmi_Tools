@@ -1,7 +1,7 @@
 ---
 name: image-color-harmony
 description: Design and enforce one coherent colour scheme in any diffusion-model image prompt — hue relationships (monochrome, analogous, complementary, split-complementary, triadic), warm/cool structure, value and saturation balance, subject-versus-background colour separation, the colour of the light, shadow environment colour and atmospheric perspective. Use when a render comes out muddy, clashing, washed out, all one note or "cheap looking", when a poster or key visual needs a deliberate palette, or when the user asks for a mood colour such as pastel, neon, sepia, duotone or teal-and-orange.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # 图像配色（Image Color Harmony）
@@ -96,6 +96,11 @@ version: 1.0.0
 颜色**主要写进自然语言**（`a warm amber palette against cool blue shadows`），
 标签只做锚点（`pastel colors`、`muted colors`、`high contrast`）。
 
+**骨架判定看色相环距离**：同一色相只变明度 / 饱和度 → 单色；相距 ≤60° → 类似色；≈180° → 互补；
+180° 两侧 → 分割互补；≈120° 三色 → 三角。写不出关系，说明你还没决定配色。
+
+**调色板规模**：主 / 辅 / 强调三色是默认，**全图可辨识的颜色最多 5 种**；再多就变成「随机配色」，观者读不出主张。
+
 ### 3. 定明度与饱和度结构
 
 只选色相不够——同一组色相，明度 / 饱和度结构不同，出来的完全是两张图：
@@ -138,7 +143,9 @@ version: 1.0.0
 
 - 背景**不要**用与主体相同的色相，除非刻意做"融进环境"的效果；
 - 眼睛、发饰、签名配件可以用**强调色**——这是最便宜的记忆点；
-- 背景色块**越少越好**：`simple background` 或两三个色块，比"五彩斑斓的背景"高级得多。
+- 背景色块**越少越好**：`simple background` 或两三个色块，比"五彩斑斓的背景"高级得多；
+- 画面里要出现**可读文字**（海报标题、UI）时，文字与背景要有**明度**差：写清 `white text on a dark blue field` 这类关系；
+  只写"彩色背景"会把文字吞掉。
 
 ### 5. 定光的颜色（光的颜色就是画面的基调）
 
@@ -170,6 +177,7 @@ version: 1.0.0
 - **亮部与暗部色相相反**（暖亮 + 冷暗，或冷亮 + 暖暗）是最稳的一条；
 - 暗部**不要用纯黑**：用 `deep blue shadows` / `dark teal shadows` 代替 `black`，
   纯黑会把颜色压死；
+- 亮部同理：**不要用纯白**（`pure white`）——改用 `warm ivory highlights` / `soft cream`，纯白会把高光细节压平；
 - 反光（`bounce light`）能给暗部补一点环境色，是"高级感"的常见来源。
 
 **大气透视：远处的颜色要被空气洗淡。** 有景深的画面里，远景应当
@@ -222,7 +230,17 @@ version: 1.0.0
 | 与画风冲突 | 极简平涂却堆了渐变与光斑 | 删掉彩色光斑，回到 `flat color` + `limited palette` |
 | 批量出图饱和度忽高忽低 | 风格 / 媒介类词与颜色词互相打架 | 降低风格 / 媒介词的强调强度，颜色统一由自然语言描述 |
 
-### 8. 自检（静默）
+### 8. 跨图颜色一致性（系列图 / 批量出图必做）
+
+同一角色、同一场景在多张图之间**颜色要逐字复用**，否则一眼就看得出「不是一套」：
+
+- **角色固有色三件套**（发色 / 眼睛 / 主服装色）写成固定短语，每张原样复制——`silver hair` 不要某张写成 `platinum blonde hair`；
+- **场景与光色固定**：同一场景只变主体动作与构图，光色与暗部环境色保持不变；
+- **分格 / 多格**：各格至少共享一个色相（通常由环境或光色承担），否则像拼贴；
+- **批量出图**：骨架与 60 : 30 : 10 比例固定，随机性只放在强调色与光的做法上；
+- 交付系列图时，把这一组固定句**单独列出来**，方便用户逐张复用。
+
+### 9. 自检（静默）
 
 - 是不是**只用了一套**配色骨架？
 - 主 / 辅 / 强调是否清楚，颜色数量是否收敛（不是每个元素一个颜色）？
@@ -235,6 +253,8 @@ version: 1.0.0
 - 有没有把颜色词堆成一大串（超过 3 个颜色锚点就该收敛）？
 - 有没有把宽高比 / 分辨率 / 种子 / CFG / 步数 / 采样器 / 模型文件名漏进正文？
 - 用户已经指定的颜色 / 情绪，是否一个字都没改？
+- 系列图 / 批量图之间，固有色与光色是否**逐字复用**（没有同义换词）？
+- 全图可辨识的颜色种类是否 ≤5（主 / 辅 / 强调 + 至多两个环境色）？
 
 ## 示例
 

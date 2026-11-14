@@ -129,6 +129,8 @@ GENERAL_SKILL_HINT = (
     "另外，清单里的 `image-*` 是**图像通用 skills**（承载与具体模型无关的图像工艺："
     "构图、配色等），它们**在所有模式下都可用**，不属于任何单一模型家族；"
     "需要构图 / 配色等通用工艺时可以直接读取，不要因为它们是通用 skills 就跳过。"
+    "其中 `image-artist-chain`（画师串）**只在二次元 / 动漫插画风格下生效**："
+    "写实、3D、实景、产品类需求请忽略它，不要把它写进提示词。"
 )
 
 # 各「任务家族」模式允许出现在「自动」清单中的 skills。
@@ -755,6 +757,12 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "先读通用基线 `image-color-harmony`（与模型无关的配色骨架、明度×饱和度结构、"
             "主体-背景分色、光的颜色），再叠加 Anima 专属的 `anima-color-harmony`"
             "（Anima 权重语法与家族路由细节）。"
+            "涉及**画师串 / 画师混合 / 锁画风**（用户点名画师、要求模仿某种画风、"
+            "或抱怨画面风格平庸、AI 感重）时，先读通用基线 `image-artist-chain`"
+            "（与模型无关的画师串构建法：模型语法适配、数量决策、权重主次、"
+            "位置与顺序、转义与冲突清理），再叠加 Anima 专属的 `anima-prompt-artist`"
+            "（`@` 前缀与家族权重档位）；只有用户明确要**融合 / 混合**多位画师时"
+            "才做多画师串，否则保持单个主画师。"
             + GENERAL_SKILL_HINT
         )
     if is_moss_mode(normalized):
@@ -1088,7 +1096,8 @@ class SkillsManagerNode:
                         "（列出 anima-* 的 12 个 skills）；"
                         "moss：MOSS-Image 图像提示词增强家族"
                         "（列出 moss-* 的 skills，默认交付 JSON Layout：全局描述 + 局部方框）；"
-                        "所有模式下都会并入 image-* 图像通用 skills（构图 / 配色等模型无关工艺）",
+                        "所有模式下都会并入 image-* 图像通用 skills（构图 / 配色 / 画师串等模型无关工艺，"
+                        "其中画师串 image-artist-chain 仅二次元 / 动漫风格生效）",
                     },
                 ),
                 "包含参考文件": (
@@ -1162,6 +1171,12 @@ class SkillsManagerNode:
         "image composition",
         "图像配色",
         "image color harmony",
+        "画师串",
+        "画师混合",
+        "artist chain",
+        "artist string",
+        "artist mixing",
+        "image artist chain",
     ]
 
     @classmethod

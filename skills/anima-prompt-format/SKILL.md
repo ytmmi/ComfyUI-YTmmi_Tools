@@ -1,7 +1,7 @@
 ---
 name: anima-prompt-format
 description: Format any idea, brief, character concept, image description or mixed Chinese/English request into Anima-ready prompt blocks (Danbooru tags plus natural-language caption, with the official tag order and quality prefix). Use for Anima Base / Aesthetic / Turbo text-to-image prompts in ComfyUI, when the user mentions Anima, 二次元, 动漫插画, Danbooru tags or needs one consistent positive/negative prompt pair.
-version: 1.2.1
+version: 1.3.0
 ---
 
 # Anima 提示词格式化（Prompt Format）
@@ -171,6 +171,39 @@ worst quality, low quality, lowres, blurry, jpeg artifacts, bad anatomy, bad han
 - 标签与自然语言是否互相加强，而不是重复空洞同义词？
 - 是否始终是动漫 / 插画取向（除非用户明确要照片感动漫）？
 - 输出是否按默认格式交付（只有正面正文，没有标题行、围栏或参数段）？
+- 文本总量是否在预算内（是精简过的，不是靠堆词填空）？
+- 是否先认了模型方言（标签方言还是自然语言方言），没有把两套写法混用？
+
+### 7. 标签预算（约 512 token）
+
+标签区 + 自然语言区的**合计文本长度**有实际上限（约 512 token，按所用编码器略有出入）。
+超了不会报错，只会**从尾部丢弃**——被丢的往往正是你辛苦加的取景与主体。
+
+写之前先估一下，超预算按顺序精简：
+
+1. 删同义质量 / 美学词（`masterpiece, best quality` 之外的同义堆叠）；
+2. 删重复与泛化细节（`detailed`、`intricate details`、大小写变体、`or` 备选）；
+3. 合并同类项（多个同义标签并成一个更具体的）。
+
+**预算再紧也别动**：人数标签、角色锚点、主画师、取景加权、用户显式约束与可见文字。
+写不满是常态——Anima 用随机标签丢弃训练，**不需要把预算填满**。
+
+### 8. 方言识别（先认模型，再写提示词）
+
+同一句需求，不同 Anima 系工作流的写法并不通用，先认出方言再动笔：
+
+| 方言 | 识别信号 | 写法 |
+|---|---|---|
+| 标签方言（本 skill 默认） | 用户要 Danbooru 标签、`score_*`、`@` 画师 | 标签区 + 权重 + 自然语言 caption，按上文顺序 |
+| 自然语言 / LLM 编码器方言 | 用户要求"自然语言描述""一句话说完""不要标签" | 见下面三条相反规则 |
+
+自然语言方言的三条相反规则：
+
+- **质量咒语清零**：`masterpiece` / `best quality` / `8k` 在 LLM 编码器上无效甚至干扰；
+- **权重语法无效**：`(tag:1.2)`、`((tag))` 不要用，靠词序与句式强调；
+- **不自行添加画风词 / 画师名 / LoRA 触发词**——用户明确给了才写，并放在最前。
+
+需要画师串时的家族语法与方言门禁见 `image-artist-chain`。
 
 ## 示例
 
