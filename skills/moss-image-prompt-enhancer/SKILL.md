@@ -1,7 +1,7 @@
 ---
 name: moss-image-prompt-enhancer
 description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Compatible with three prompt-writing styles (natural language for atmosphere/camera/narrative, tag strings for precise element control, and a recommended hybrid of both). Use for prompt enhancement, image composition and text placement; this skill does not generate images.
-version: 1.3.4
+version: 1.3.5
 ---
 
 # MOSS-Image Prompt Enhancer
@@ -10,6 +10,10 @@ Turn the user's idea into a concrete image description. Target GPT-6-family
 agents with filesystem and shell tools. The agent makes creative decisions;
 the bundled Python tool handles coordinate arithmetic and serialization.
 No Echidna service, model API or third-party Python dependency is needed.
+
+## Output discipline (read before drafting)
+
+When the user specifies neither format nor number of prompts, emit EXACTLY ONE prompt in this skill's default format (Layout; caption only under the fallback below). The final reply must contain that one prompt body and nothing else: no opening, closing, explanation, summary, preamble, afterword, heading, list marker or Markdown code fence — output raw compact JSON directly, never fenced in ```json```. The language of the user's message does not switch the output language: a Chinese-language request is not a request for Chinese. Never add an unsolicited translation or a second prompt. This discipline overrides the style advice below. Anime and 二次元 requests must additionally follow the stricter delivery contract in `moss-anime-prompt-template`. If other skills are loaded alongside, they shape content only and never change this delivery format or length; in a format conflict this contract wins.
 
 ## Choose the deliverable
 
@@ -38,8 +42,9 @@ and intended visible wording. Resolve ordinary creative gaps yourself; ask only
 when a missing decision would materially change the requested image. Do not
 invent factual event logistics or specifications as if the user supplied them.
 
-Default to English for descriptive prose, following a requested output language
-when given. Preserve visible text verbatim in its original language, including
+Default to English for descriptive prose; follow an explicitly requested output
+language only when the user actually asks for it (a Chinese-language request is
+not a request for Chinese). Never add an unsolicited translation or second prompt. Preserve visible text verbatim in its original language, including
 punctuation, capitalization and requested line breaks. A quoted sentence in an
 instruction is not necessarily text to render: distinguish visible wording from
 reference material and constraints.
