@@ -47,6 +47,7 @@ const HIDDEN_WHEN_BASIC = [
   "最大会话轮数",
   "图片最长边",
   "图片细节",
+  "最大请求频率",
 ];
 
 function findWidget(node, name) {
@@ -68,7 +69,7 @@ function isAdvancedOn(node) {
   return value === true || value === "true" || value === 1 || value === "1";
 }
 
-/** 依据「高级」开关刷新 17 个高级参数控件的可见性。 */
+/** 依据「高级」开关刷新 18 个高级参数控件的可见性。 */
 function syncNode(node) {
   if (!node || !node.widgets) return;
   const advanced = isAdvancedOn(node);

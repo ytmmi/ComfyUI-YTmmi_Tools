@@ -39,6 +39,12 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 - top_k：0~200，0 不发送（非 OpenAI 官方字段，部分接口支持）
 - 推理强度（reasoning_effort）：空 / low / medium / high，空不发送
 - 超时秒数：默认 120；空输出重试次数：默认 2（仅 finish_reason 正常结束时重试）
+- 退避重试：请求没成功（网络异常 / 连接超时 / 429 / 5xx）时按指数退避自动重试 5 次，
+  等待阶梯 1 → 3 → 9 → 27 → 60 秒；60 秒是**单次等待上限**（最后一次重试等 60 秒），
+  不是重试的总时长预算。401 / 403 / 400 等确定性错误立即报错、不重试
+- 最大请求频率：单位「次/分钟」，只填次数，0 = 不限制（默认）。同一「接口地址 + API密钥」
+  共用一条限频通道（多个节点用同一密钥合并计算），60 秒滚动窗口内发满时自动排队等待
+  到窗口释放再发；重试与排队都记在「简略上下文」的「重试与限频」行
 
 多轮会话（默认关闭，节点后台维护）：
 - 启用多轮对话：BOOLEAN，默认 False。开启后节点自动把本节点此前的对话轮次
@@ -95,6 +101,7 @@ Kimi、本地 vLLM/Ollama 等），传入系统提示词与用户提示词，返
 """
 
 import base64
+import hashlib
 import html
 import io
 import json
@@ -103,6 +110,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from collections import deque
 from dataclasses import dataclass, field
 
 import torch
@@ -197,6 +205,31 @@ SKILLS_TOTAL_CHARS_DEFAULT = 300000
 EMPTY_OUTPUT_RETRIES = 2
 # 「空输出重试次数」控件允许的上限
 EMPTY_OUTPUT_RETRIES_MAX = 5
+
+# ── 退避重试（指数退避：1 秒 → 60 秒）─────────────────────────────────────
+# 只有「请求没成功」才走退避重试：网络异常 / 连接超时 / 429 / 5xx 等可恢复错误。
+# 等待阶梯 1 → 3 → 9 → 27 → 60 秒，共 BACKOFF_RETRIES 次。60 秒是**单次等待上限**
+# （最后一次重试等待 60 秒），不是重试的总时长预算。
+BACKOFF_RETRIES = 5              # 指数退避的重试次数
+BACKOFF_BASE_SECONDS = 1.0       # 第 1 次重试等待秒数
+BACKOFF_MULTIPLIER = 3.0         # 指数倍率：1 → 3 → 9 → 27 → 81（封顶 60）
+BACKOFF_MAX_SECONDS = 60.0       # 单次等待上限（= 最后一次重试的等待）
+BACKOFF_PRINT_CHARS = 160        # 提示行里接口错误详情的截断长度
+
+# 可退避重试的 HTTP 状态码。其余 4xx（密钥错误、参数错误、余额不足、内容策略拦截
+# 等）属于确定性失败，立即报错、不浪费时间重试。
+RETRYABLE_STATUS_CODES = frozenset(
+    {408, 409, 425, 429, 500, 502, 503, 504, 507, 509, 520, 521, 522, 524, 598, 599}
+)
+
+# ── 最大请求频率（单位：次/分钟，0 = 不限制）───────────────────────────────
+# 同一「接口地址 + API密钥」共用一条限频通道：60 秒滚动窗口内最多发 limit 条请求，
+# 发满时按 FIFO 排到窗口释放再发（等待对用户透明）。多个节点用同一密钥会合并计算，
+# 与接口侧按密钥限流的口径一致。
+RATE_WINDOW_SECONDS = 60.0
+RATE_LIMIT_DEFAULT = 0
+RATE_LIMIT_MIN = 0
+RATE_LIMIT_MAX = 6000
 
 # 种子取值范围（与「种子」控件 min/max 一致）
 SEED_MIN = -1
@@ -902,6 +935,8 @@ class LLMReply:
     finish_reason: str = ""  # 接口返回的 finish_reason
     elapsed: float = 0.0  # 本次请求耗时（秒）
     search_note: str = ""  # 联网搜索说明（仅开启联网搜索时非空）
+    # 本次尝试在「最大请求频率」上排队等待的秒数（由 _post_chat 汇总到统计）
+    rate_wait: float = 0.0
 
 
 @dataclass
@@ -935,6 +970,8 @@ class RunTrace:
     reads: list = field(default_factory=list)  # (读取路径, skills id, 字符数)
     injected_chars: int = 0
     final_text: str = ""
+    # 「重试与限频」一行说明（退避重试次数 / 等待秒数 / 限频排队秒数），空则不渲染
+    retry_note: str = ""
 
     def usage_totals(self) -> dict:
         """汇总所有步骤的 usage（prompt / completion / total tokens 与耗时）。"""
@@ -1000,6 +1037,8 @@ class RunTrace:
         lines.append(f"- 模型：{self.model or '（未指定）'}")
         lines.append(f"- 模式：{self.mode}")
         lines.append(f"- 步数：{len(self.steps)} 步（每步 = 一次接口请求）")
+        if str(self.retry_note or "").strip():
+            lines.append(f"- 重试与限频：{self.retry_note}")
 
         if self.input_skills:
             lines.append(
@@ -1077,6 +1116,206 @@ class EmptyLLMOutputError(RuntimeError):
     def __init__(self, message, retryable=False):
         super().__init__(message)
         self.retryable = bool(retryable)
+
+
+class LLMRequestError(RuntimeError):
+    """请求没能送达，或接口返回了可恢复的错误状态码。
+
+    retryable=True 时由 _post_chat 按「指数退避 1 秒 → 60 秒」自动重试
+    （共 BACKOFF_RETRIES 次）；401 / 403 / 400 这类确定性错误 retryable=False，
+    立即报错、不浪费时间。status_code 为接口状态码（网络异常时是 0）。
+    """
+
+    def __init__(self, message, retryable=False, status_code=0, retry_after=0.0):
+        super().__init__(message)
+        self.retryable = bool(retryable)
+        self.status_code = int(status_code or 0)
+        self.retry_after = max(0.0, float(retry_after or 0.0))
+
+
+def is_retryable_status(status_code) -> bool:
+    """该 HTTP 状态码是否值得退避重试（429 / 5xx / 超时类）。"""
+    try:
+        code = int(status_code or 0)
+    except (TypeError, ValueError):
+        return False
+    return code in RETRYABLE_STATUS_CODES or 500 <= code < 600
+
+
+def backoff_delay(
+    attempt,
+    base=BACKOFF_BASE_SECONDS,
+    multiplier=BACKOFF_MULTIPLIER,
+    cap=BACKOFF_MAX_SECONDS,
+) -> float:
+    """第 attempt 次重试（从 1 起）应等待的秒数：指数增长并封顶 cap。
+
+    默认阶梯 1 -> 3 -> 9 -> 27 -> 60（第 5 次即最后一次正好落在 60 秒上限）。
+    60 秒是单次等待的上限，不是所有重试加起来的时长预算。
+    """
+    try:
+        index = max(1, int(attempt))
+        value = float(base) * (float(multiplier) ** (index - 1))
+    except (TypeError, ValueError, OverflowError):
+        return float(cap)
+    return round(min(float(cap), max(0.0, value)), 3)
+
+
+def retry_after_seconds(response) -> float:
+    """读取响应头 Retry-After（仅支持「秒数」写法），封顶 BACKOFF_MAX_SECONDS。"""
+    headers = getattr(response, "headers", None)
+    if not headers:
+        return 0.0
+    try:
+        raw = headers.get("Retry-After", headers.get("retry-after"))
+    except Exception:
+        return 0.0
+    if raw is None:
+        return 0.0
+    try:
+        value = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return 0.0
+    if value <= 0:
+        return 0.0
+    return round(min(BACKOFF_MAX_SECONDS, value), 3)
+
+
+def _sleep(seconds) -> None:
+    """统一等待出口（测试可替换本函数，避免真实 sleep 拖慢用例）。"""
+    time.sleep(max(0.0, float(seconds)))
+
+
+def _retry_sleep(attempt, delay, reason="", model="", total=BACKOFF_RETRIES) -> float:
+    """打印一行进度提示后等待 delay 秒，让控制台能看到退避过程。"""
+    text = " ".join(str(reason or "").split())
+    if len(text) > BACKOFF_PRINT_CHARS:
+        text = text[:BACKOFF_PRINT_CHARS] + "...(截断)"
+    who = f"（模型「{model}」）" if model else ""
+    print(
+        f"[自定义LLM] 请求失败{who}，第 {attempt}/{total} 次退避重试，"
+        f"等待 {delay:.1f} 秒后重发：{text}",
+        flush=True,
+    )
+    _sleep(delay)
+    return float(delay)
+
+
+# ── 最大请求频率（60 秒滚动窗口 + FIFO 排期）──────────────────────────────
+_RATE_LOCK = threading.Lock()
+# 通道键 -> 窗口内各请求的发送时刻（deque，可能含已排期的未来时刻）
+_RATE_MARKS: dict = {}
+
+
+def rate_limit_key(base_url, api_key) -> str:
+    """限频通道键 = 接口地址 + 密钥的指纹（同凭据的多个节点共用一条通道）。"""
+    raw = f"{str(base_url or '').strip().lower()}|{str(api_key or '').strip()}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def rate_limit_wait(key, limit_per_minute, clock=None) -> float:
+    """为本次请求排队，返回**需要等待的秒数**（0 = 立即可发）。
+
+    60 秒滚动窗口：窗口内不足 limit 条时立即放行并记账；已满时把本条排到
+    「最早那条滑出窗口」的时刻（FIFO），一次算准、不轮询。limit <= 0 = 不限制。
+    """
+    try:
+        limit = int(limit_per_minute)
+    except (TypeError, ValueError):
+        return 0.0
+    if limit <= 0:
+        return 0.0
+    now = (clock or time.monotonic)()
+    with _RATE_LOCK:
+        marks = _RATE_MARKS.setdefault(key, deque())
+        cutoff = now - RATE_WINDOW_SECONDS
+        while marks and marks[0] <= cutoff:
+            marks.popleft()
+        if len(marks) < limit:
+            marks.append(now)
+            return 0.0
+        due = marks.popleft() + RATE_WINDOW_SECONDS
+        marks.append(due)
+        return round(max(0.0, due - now), 3)
+
+
+def reset_rate_limits() -> None:
+    """清空限频排队记录（测试与排查用）。"""
+    with _RATE_LOCK:
+        _RATE_MARKS.clear()
+
+
+def rate_limit_stats() -> dict:
+    """限频通道快照：{通道键: 窗口内已占用条数}（排查用）。"""
+    with _RATE_LOCK:
+        return {key: len(marks) for key, marks in _RATE_MARKS.items()}
+
+
+def make_rate_throttle(key, limit_per_minute):
+    """构造「发请求前调用」的限频函数；limit <= 0 时返回 None（不限制）。
+
+    返回的函数每次调用占用一个窗口名额，必要时原地等到窗口释放，并把实际
+    等待秒数交回调用方累计进统计。
+    """
+    try:
+        limit = int(limit_per_minute)
+    except (TypeError, ValueError):
+        return None
+    if limit <= 0:
+        return None
+
+    def _throttle() -> float:
+        waited = rate_limit_wait(key, limit)
+        if waited > 0:
+            print(
+                f"[自定义LLM] 已达「最大请求频率」上限（{limit} 次/分钟），"
+                f"排队等待 {waited:.1f} 秒后发送请求",
+                flush=True,
+            )
+            _sleep(waited)
+        return waited
+
+    return _throttle
+
+
+def new_retry_stats() -> dict:
+    """一次节点执行的「退避重试 / 空输出重试 / 限频排队」统计。"""
+    return {"backoff": 0, "empty": 0, "retry_wait": 0.0, "rate_wait": 0.0}
+
+
+def record_stats(stats, backoff=0, empty=0, retry_wait=0.0, rate_wait=0.0) -> None:
+    """把一次逻辑请求的重试与等待累计进统计（stats 为 None 时静默跳过）。"""
+    if not isinstance(stats, dict):
+        return
+    stats["backoff"] = int(stats.get("backoff") or 0) + int(backoff or 0)
+    stats["empty"] = int(stats.get("empty") or 0) + int(empty or 0)
+    stats["retry_wait"] = round(
+        float(stats.get("retry_wait") or 0.0) + float(retry_wait or 0.0), 3
+    )
+    stats["rate_wait"] = round(
+        float(stats.get("rate_wait") or 0.0) + float(rate_wait or 0.0), 3
+    )
+
+
+def format_retry_note(stats) -> str:
+    """统计写成一行中文说明；没发生重试/排队时返回空串（不污染上下文）。"""
+    if not isinstance(stats, dict):
+        return ""
+    backoff = int(stats.get("backoff") or 0)
+    empty = int(stats.get("empty") or 0)
+    waited = float(stats.get("retry_wait") or 0.0)
+    rate = float(stats.get("rate_wait") or 0.0)
+    parts = []
+    if backoff:
+        text = f"退避重试 {backoff} 次（指数退避 1 到 60 秒）"
+        if waited:
+            text += f"，累计等待 {waited:.1f} 秒"
+        parts.append(text)
+    if empty:
+        parts.append(f"空输出重试 {empty} 次")
+    if rate:
+        parts.append(f"限频排队等待 {rate:.1f} 秒")
+    return "；".join(parts)
 
 # 获取模型成功后的接口模型列表缓存（进程内）。
 # 作用：ComfyUI 后端会校验 COMBO 输入值必须存在于 INPUT_TYPES 的选项列表中，
@@ -1207,7 +1446,7 @@ class CustomLLMNode:
     """自定义在线 LLM（OpenAI 兼容接口）。"""
 
     CATEGORY = "YTmmi/text"
-    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本，自动清单走多轮按需读取）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型，可等比缩放并设置细节档位）、温度/最大token/top_p/种子（含官方生成后控制）、完整请求参数（输出格式/频率惩罚/存在惩罚/候选数量/top_k/推理强度/超时/空输出重试）、多轮会话（默认关闭，开启后节点后台自动维护上下文，可设最大会话轮数）、内置工具（后台声明 read_skill 并自动执行，无需人工配置）；输出文本之外另输出「简略上下文」（用量统计置顶/步数/输入skills名称/调用的skills/每步思考/最终输出，纯代码拼装不调用模型总结）；联网搜索（默认关闭，开启后由模型自动调用渠道原生搜索，DeepSeek 官方接口通过 function 工具 + 独立 Search API 适配，无原生适配或被拒绝时静默回退到节点内本地实现，无需配置检索词）；「高级」开关默认关闭，前端只显示核心参数与联网搜索/种子，打开后显示全部参数（仅控制界面显隐，不改变请求行为）'
+    DESCRIPTION = '自定义LLM：调用任意 OpenAI 兼容格式的在线大模型接口，支持选择密钥储存器密钥、获取模型列表、skills 输入接口（接入 skills管理器输出的指导文本，自动清单走多轮按需读取）、图片输入（最多9张，适配 DeepSeek V4.1 Flash 等视觉模型，可等比缩放并设置细节档位）、温度/最大token/top_p/种子（含官方生成后控制）、完整请求参数（输出格式/频率惩罚/存在惩罚/候选数量/top_k/推理强度/超时/空输出重试）、退避重试（请求失败按 1→60 秒指数退避重试 5 次，60 秒为单次等待上限）与最大请求频率（单位次/分钟，只填次数，0=不限制）、多轮会话（默认关闭，开启后节点后台自动维护上下文，可设最大会话轮数）、内置工具（后台声明 read_skill 并自动执行，无需人工配置）；输出文本之外另输出「简略上下文」（用量统计置顶/步数/输入skills名称/调用的skills/每步思考/最终输出，纯代码拼装不调用模型总结）；联网搜索（默认关闭，开启后由模型自动调用渠道原生搜索，DeepSeek 官方接口通过 function 工具 + 独立 Search API 适配，无原生适配或被拒绝时静默回退到节点内本地实现，无需配置检索词）；「高级」开关默认关闭，前端只显示核心参数与联网搜索/种子，打开后显示全部参数（仅控制界面显隐，不改变请求行为）'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1433,6 +1672,23 @@ class CustomLLMNode:
                         "仅控制界面显隐，不改变请求行为",
                     },
                 ),
+                # 「最大请求频率」同样**追加在 optional 最末尾**，避免打乱旧工作流
+                # widgets_values 的位置回填；0 = 不限制（默认），关闭时请求行为逐字不变。
+                "最大请求频率": (
+                    "INT",
+                    {
+                        "default": RATE_LIMIT_DEFAULT,
+                        "min": RATE_LIMIT_MIN,
+                        "max": RATE_LIMIT_MAX,
+                        "step": 1,
+                        "tooltip": "最大请求频率，单位「次/分钟」，只填次数即可；"
+                        "0 = 不限制（默认）。同一「接口地址 + API密钥」共用一条限频通道"
+                        "（多个节点用同一密钥会合并计算），60 秒滚动窗口内发满时自动"
+                        "排队等待到窗口释放再发请求。另外请求失败（网络异常 / 429 / 5xx）"
+                        "会按 1 → 3 → 9 → 27 → 60 秒指数退避自动重试 5 次，"
+                        "60 秒是单次等待上限（最后一次重试等 60 秒）",
+                    },
+                ),
             },
             # 隐藏输入：ComfyUI 执行时注入节点 id，用作「多轮会话」的会话键。
             # 不占前端端口，也不写进工作流控件值。
@@ -1471,6 +1727,14 @@ class CustomLLMNode:
         "deepseek",
         "DeepSeek 搜索",
         "Search API",
+        "退避重试",
+        "指数退避",
+        "重试",
+        "最大请求频率",
+        "请求频率",
+        "限流",
+        "rate limit",
+        "backoff",
     ]
 
     def chat(
@@ -1499,6 +1763,13 @@ class CustomLLMNode:
         )
         retries = int(kwargs.get("空输出重试次数", EMPTY_OUTPUT_RETRIES))
         timeout = int(kwargs.get("超时秒数", REQUEST_TIMEOUT_DEFAULT))
+        # 最大请求频率（次/分钟，0 = 不限制）：只填次数，单位固定不暴露控件
+        rate_limit = int(kwargs.get("最大请求频率", RATE_LIMIT_DEFAULT) or 0)
+        if rate_limit < RATE_LIMIT_MIN:
+            raise ValueError(
+                f"自定义LLM：「最大请求频率」不能为负数（当前 {rate_limit}），"
+                "0 表示不限制"
+            )
         image_max_side = int(kwargs.get("图片最长边", IMAGE_MAX_SIDE_DEFAULT))
         image_detail = str(kwargs.get("图片细节", "auto")).strip().lower()
         if image_detail not in IMAGE_DETAIL_OPTIONS:
@@ -1573,6 +1844,10 @@ class CustomLLMNode:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        # 「最大请求频率」限频通道（同接口地址 + 同密钥共用一条），0 = 不限制
+        throttle = make_rate_throttle(rate_limit_key(base_url, api_key), rate_limit)
+        # 本次执行的退避重试 / 空输出重试 / 限频排队统计
+        retry_stats = new_retry_stats()
 
         # 收集已连接的图片输入（图片0 ~ 图片8，未连接为 None）
         images = []
@@ -1672,6 +1947,8 @@ class CustomLLMNode:
                 retries=retries,
                 timeout=timeout,
                 search_note=search_note,
+                throttle=throttle,
+                stats=retry_stats,
             )
             if multi_turn:
                 remember_session_turn(session, str(prompt), final_text)
@@ -1726,6 +2003,8 @@ class CustomLLMNode:
                 extra_fields=extra_fields,
                 timeout=timeout,
                 search_responder=search_responder,
+                throttle=throttle,
+                stats=retry_stats,
             )
         else:
             reply = self._post_chat(
@@ -1741,6 +2020,8 @@ class CustomLLMNode:
                 retries=retries,
                 extra_fields=extra_fields,
                 timeout=timeout,
+                throttle=throttle,
+                stats=retry_stats,
             )
         # 「简略上下文」：单轮请求同样记录一步（思考 + 最终输出）
         effective_note = reply.search_note or search_note
@@ -1765,6 +2046,7 @@ class CustomLLMNode:
                 )
             ],
             final_text=reply.text,
+            retry_note=format_retry_note(retry_stats),
         )
         if multi_turn:
             remember_session_turn(session, str(prompt), reply.text)
@@ -1786,19 +2068,53 @@ class CustomLLMNode:
         retries=EMPTY_OUTPUT_RETRIES,
         extra_fields=None,
         timeout=REQUEST_TIMEOUT_DEFAULT,
+        throttle=None,
+        stats=None,
     ) -> "LLMReply":
         """发送一次 chat/completions 请求并返回助手文本（含思考内容）。
 
-        当接口返回 200 但内容为空、且 finish_reason 属于正常结束时，自动重试
-        （最多 retries 次），避免偶发空响应直接变成空输出。
+        两层重试各管各的失败，互不干扰：
+
+        1. 退避重试（BACKOFF_RETRIES 次，默认 5）——「请求没成功」：网络异常、
+           连接超时、429、5xx 等可恢复错误，按 1 -> 3 -> 9 -> 27 -> 60 秒指数退避
+           后重发。60 秒是**单次等待上限**（最后一次重试等 60 秒），不是所有重试
+           加起来的时长预算；接口给了 Retry-After 时优先采纳（同样封顶 60 秒）。
+           401 / 403 / 400 等确定性错误不参与退避重试，立即报错。
+        2. 空输出重试（retries 次）——接口返回 200 但内容为空、且 finish_reason
+           属于正常结束时立即重试，避免偶发空响应直接变成空输出。
 
         extra_fields 为「完整请求参数」构造出的附加字段（默认空 = 不发送），
         timeout 为单次请求超时秒数。
+        throttle 为「最大请求频率」限频函数（None = 不限制）：每次真正发请求前
+        调用一次，窗口发满时它内部排队并交回实际等待秒数。
+        stats 累计本次节点执行的重试次数与等待秒数，供「简略上下文」的
+        「重试与限频」行使用（退避重发同样各占一个限频窗口名额）。
         """
-        last_error = None
-        for attempt in range(max(0, int(retries)) + 1):
+        backoff_total = max(0, int(BACKOFF_RETRIES))
+        empty_total = max(0, int(retries))
+        backoff_used = 0  # 已发生的退避重试次数
+        empty_used = 0  # 已发生的空输出重试次数
+        wait_total = 0.0  # 退避等待累计秒数
+        rate_total = 0.0  # 限频排队累计秒数
+
+        def _flush() -> None:
+            record_stats(
+                stats,
+                backoff=backoff_used,
+                empty=empty_used,
+                retry_wait=wait_total,
+                rate_wait=rate_total,
+            )
+
+        while True:
+            # 限频只统计真正发出的尝试；退避重发同样各占一个窗口名额
+            if throttle is not None:
+                try:
+                    rate_total += float(throttle() or 0.0)
+                except Exception:
+                    pass  # 限频是保护措施，自身异常绝不拖垮请求
             try:
-                return self._post_chat_once(
+                reply = self._post_chat_once(
                     url=url,
                     headers=headers,
                     messages=messages,
@@ -1812,10 +2128,33 @@ class CustomLLMNode:
                     timeout=timeout,
                 )
             except EmptyLLMOutputError as exc:
-                last_error = exc
-                if not exc.retryable or attempt >= int(retries):
+                if not exc.retryable or empty_used >= empty_total:
+                    _flush()
                     raise
-        raise last_error  # pragma: no cover - 循环内必然 return 或 raise
+                empty_used += 1
+                continue
+            except LLMRequestError as exc:
+                if not exc.retryable or backoff_used >= backoff_total:
+                    _flush()
+                    if backoff_used:
+                        exc.args = (
+                            f"{exc}（已按指数退避重试 {backoff_used} 次、"
+                            f"累计等待 {wait_total:.0f} 秒后仍未成功）",
+                        )
+                    raise
+                backoff_used += 1
+                delay = float(exc.retry_after or 0.0) or backoff_delay(backoff_used)
+                wait_total += _retry_sleep(
+                    backoff_used,
+                    delay,
+                    reason=str(exc),
+                    model=model,
+                    total=backoff_total,
+                )
+                continue
+            reply.rate_wait = rate_total
+            _flush()
+            return reply
 
     def _post_chat_once(
         self,
@@ -1831,7 +2170,11 @@ class CustomLLMNode:
         extra_fields=None,
         timeout=REQUEST_TIMEOUT_DEFAULT,
     ) -> "LLMReply":
-        """发送单次 chat/completions 请求并解析响应（同时保留思考内容）。"""
+        """发送单次 chat/completions 请求并解析响应（同时保留思考内容）。
+
+        可恢复失败（网络异常 / 429 / 5xx）抛 LLMRequestError(retryable=True)，
+        由 _post_chat 负责指数退避重试；确定性错误仍抛普通 RuntimeError。
+        """
         payload = {
             "model": str(model),
             "messages": messages,
@@ -1854,7 +2197,8 @@ class CustomLLMNode:
                 timeout=max(1, int(timeout or REQUEST_TIMEOUT_DEFAULT)),
             )
         except Exception as exc:
-            raise RuntimeError(f"自定义LLM：请求失败（{exc}）") from exc
+            # 连不上 / 超时 / DNS 等：请求根本没送达，按可恢复错误交给退避重试
+            raise LLMRequestError(f"自定义LLM：请求失败（{exc}）", retryable=True) from exc
         elapsed = time.monotonic() - started
 
         # 渠道原生搜索字段被接口以 4xx 拒绝（常见于中转站 / 未适配模型）时，
@@ -1890,6 +2234,14 @@ class CustomLLMNode:
 
         if response.status_code != 200:
             detail = response.text[:500] if response.text else "无响应内容"
+            # 限流 / 网关 / 服务端错误：可恢复失败，抛给 _post_chat 指数退避重试
+            if is_retryable_status(response.status_code):
+                raise LLMRequestError(
+                    f"自定义LLM：接口返回 {response.status_code}：{detail}",
+                    retryable=True,
+                    status_code=int(response.status_code),
+                    retry_after=retry_after_seconds(response),
+                )
             # 发送了图片但模型不支持：给出选模型建议（如 DeepSeek 需用 deepseek-flash）
             detail_lower = detail.lower()
             if images and (
@@ -1982,6 +2334,7 @@ class CustomLLMNode:
     def _chat_with_native_search_tools(
         self, url, headers, messages, model, temperature, max_tokens, top_p,
         seed, images, retries, extra_fields, timeout, search_responder=None,
+        throttle=None, stats=None,
     ) -> "LLMReply":
         """渠道原生联网搜索的 tool 消息回注循环。
 
@@ -1999,6 +2352,7 @@ class CustomLLMNode:
                 temperature=temperature, max_tokens=max_tokens, top_p=top_p,
                 seed=seed, images=images, retries=retries,
                 extra_fields=extra_fields, timeout=timeout,
+                throttle=throttle, stats=stats,
             )
             calls = list(reply.tool_calls or [])
             if reply.source == "tool_calls" and not calls:
@@ -2043,6 +2397,7 @@ class CustomLLMNode:
             temperature=temperature, max_tokens=max_tokens, top_p=top_p,
             seed=seed, images=images, retries=retries,
             extra_fields=fallback_fields, timeout=timeout,
+            throttle=throttle, stats=stats,
         )
         reply.search_note = "本地搜索（渠道原生搜索未收敛后回退）"
         return reply
@@ -2235,6 +2590,8 @@ class CustomLLMNode:
         retries=EMPTY_OUTPUT_RETRIES,
         timeout=REQUEST_TIMEOUT_DEFAULT,
         search_note="",
+        throttle=None,
+        stats=None,
     ) -> tuple:
         """多轮按需读取 skills，直到模型给出最终答案或达到轮数上限。
 
@@ -2275,6 +2632,8 @@ class CustomLLMNode:
                 extra_fields=extra_fields,
                 retries=retries,
                 timeout=timeout,
+                throttle=throttle,
+                stats=stats,
             )
             step_index = len(steps) + 1
 
@@ -2446,6 +2805,8 @@ class CustomLLMNode:
                 extra_fields=extra_fields,
                 retries=retries,
                 timeout=timeout,
+                throttle=throttle,
+                stats=stats,
             )
             steps.append(
                 RunStep(
@@ -2473,6 +2834,7 @@ class CustomLLMNode:
             reads=reads,
             injected_chars=injected,
             final_text=final_text,
+            retry_note=format_retry_note(stats),
         )
         return final_text, trace.render()
 
@@ -2663,6 +3025,18 @@ __all__ = [
     "RunStep",
     "RunTrace",
     "EmptyLLMOutputError",
+    "LLMRequestError",
+    "is_retryable_status",
+    "backoff_delay",
+    "retry_after_seconds",
+    "rate_limit_key",
+    "rate_limit_wait",
+    "reset_rate_limits",
+    "rate_limit_stats",
+    "make_rate_throttle",
+    "new_retry_stats",
+    "record_stats",
+    "format_retry_note",
     "CONTEXT_TITLE",
     "input_skill_names",
     "skills_manifest_ids",
@@ -2684,6 +3058,16 @@ __all__ = [
     "REQUEST_TIMEOUT_MAX",
     "EMPTY_OUTPUT_RETRIES",
     "EMPTY_OUTPUT_RETRIES_MAX",
+    "BACKOFF_RETRIES",
+    "BACKOFF_BASE_SECONDS",
+    "BACKOFF_MULTIPLIER",
+    "BACKOFF_MAX_SECONDS",
+    "BACKOFF_PRINT_CHARS",
+    "RETRYABLE_STATUS_CODES",
+    "RATE_WINDOW_SECONDS",
+    "RATE_LIMIT_DEFAULT",
+    "RATE_LIMIT_MIN",
+    "RATE_LIMIT_MAX",
     "IMAGE_MAX_SIDE_DEFAULT",
     "IMAGE_MAX_SIDE_MIN",
     "IMAGE_MAX_SIDE_MAX",
