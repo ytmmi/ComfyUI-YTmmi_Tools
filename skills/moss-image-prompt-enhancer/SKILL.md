@@ -1,7 +1,7 @@
 ---
 name: moss-image-prompt-enhancer
-description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Use for prompt enhancement, image composition and text placement; this skill does not generate images.
-version: 1.2.1
+description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Compatible with three prompt-writing styles (natural language for atmosphere/camera/narrative, tag strings for precise element control, and a recommended hybrid of both). Use for prompt enhancement, image composition and text placement; this skill does not generate images.
+version: 1.3.4
 ---
 
 # MOSS-Image Prompt Enhancer
@@ -51,10 +51,44 @@ interaction requests, prefer the sibling skill `moss-anime-prompt-template`
 (中文模板). It carries the stricter rules those requests need: style as an
 independent opening sentence, per-character attribute grouping, camera and
 spatial layering, lighting causality, Layout item splitting and a pre-delivery
-checklist. Use this skill for general image ideas, caption-only work, and
-pixel-level Layout drafting with `scripts/compile_prompt.py`; the two skills
-share the same caption/Layout contract and can be combined, but do not restate
-the anime rules here.
+checklist. In particular, for anime tasks the sibling skill uses an artist
+string and, when the user did not name one, dynamically matches a main artist to the described style (medium / linework / shading / palette / era); it keeps no fixed style-to-artist table, but style-to-artist matching is the normal path.
+Use this skill for general image ideas, caption-only work, and pixel-level
+Layout drafting with `scripts/compile_prompt.py`; the two skills share the
+same caption/Layout contract and can be combined, but do not restate the anime
+rules here.
+
+## Prompt-writing styles (three compatible schools)
+
+The way the positive text is organized is independent of the deliverable form
+(caption or Layout). Use whichever school fits the request:
+
+- **Natural language** — best for atmosphere, camera movement and narrative
+  feeling. Write who does what to whom, how the camera looks, where the light
+  comes from and which visible action carries the mood. This is the default
+  when the user does not ask for tags.
+- **Tag string** — best for precise control of individual elements. The common
+  community order is **Quality → Score → Meta → Year → Character → Series →
+  Artist → General**; treat it as a reference order only — do not auto-add
+  quality words or scores, and add a year only when it is given or verifiable.
+  Artist is an expected slot for anime tasks: use a user-named artist if given,
+  otherwise match one main artist to the style direction through the medium/linework/shading/palette/era slots (only mix when explicitly asked; no fixed style-to-artist table is kept);
+  it goes after Series, before General. Here the usable order is optional
+  specific-medium Meta → Character → Series → Artist (user-provided or
+  auto-selected) → General.
+- **Hybrid** — recommended most: use tags as compact anchors for identity,
+  appearance and key elements ("what must be present"), then natural-language
+  sentences for relations, camera, lighting and emotion ("where it goes and
+  what it is doing"), without stating the same content twice; keeping each
+  concern in its own block makes faulty parts easy to replace. MOSS's text
+  encoder reads left to right, so put global light/color-temperature/material
+  conditions before character and clothing nouns. Keep count and core state
+  tags verbatim; in multi-character scenes describe the main subject first and
+  explicitly contrast the second to avoid attribute bleed. Keep the style as
+  an independent opening sentence and do not import other models' weight /
+  `BREAK` / per-character / region syntax. For anime and 二次元 work, the
+  sibling `moss-anime-prompt-template` carries the hard-rule version of these
+  three styles.
 
 ## Develop the image
 
