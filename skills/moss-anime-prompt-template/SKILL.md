@@ -1,7 +1,7 @@
 ---
 name: moss-anime-prompt-template
 description: 把二次元人物、IP 同人、场景插画、多人互动、海报与漫画需求写成 MOSS-Image-Base / MOSS-Image-SFT 可直接使用的正向提示词（Caption / Tag / Layout 三种交付），内置画风独立首句、人数与属性绑定、镜头与空间、光照因果、Layout 字段与坐标换算等硬规则，并兼容自然语言 / Tag 串 / 混合写法三种提示词流派（混合写法最推荐）。仅做提示词改写，不生成图片、不调用外部 API。
-version: 1.2.5
+version: 1.3.0
 ---
 
 # MOSS 二次元提示词模板（sfw 版）
@@ -320,6 +320,64 @@ highlight from the pale tabletop.`
 
 画面情绪通过**可见行为**表达：迟疑的手、未寄出的信、空站台、两人之间的距离。`melancholic`
 等词可以概括，但不能代替事件。
+
+### §9.1 MOSS 二次元专用：画种整组替换 + 精修分区
+
+官方与社区实测（详见 `references/moss-anime-aesthetics.md`）里有两条对 MOSS-Image 特别有效：
+
+**（1）画种词整组替换，并同步删掉冲突词。** 不是加一个风格词，而是把**一整组**画种词放在提示词
+最前面，同时删掉与之矛盾的说法。常用的几组：
+
+| 目标 | 开头词组 | 必须同时删掉 |
+|---|---|---|
+| 90s 赛璐璐 OVA | `1990s (style), retro artstyle, anime screencap, cel shading, hand-painted cel animation, VHS color bleed` | `painterly, soft blending` |
+| 黑白漫画网点 | `manga page, monochrome, greyscale, screentones, inked lineart, bold black ink outlines` | **正文所有颜色词**（否则会变局部留色漫画） |
+| 透明水彩 | `watercolor (medium), traditional media, ink and wash, soft pigment bleed on rough cold-press paper` | `flat color, crisp vector` |
+| 扁平矢量波普 | `flat color, vector illustration, bold thick colored outlines, hard geometric cel shading` | `gradient, airbrush, soft shading` |
+| 厚涂刮刀 | `impasto, oil painting (medium), heavy visible brushstrokes, painterly lineless` | `black outlines, lineart` |
+| Q 版 | `chibi, super deformed, 2-head-tall proportions, oversized head, tiny body, bold outlines` | 写实比例词 |
+| 水墨重彩 | `Chinese wild ink and wash painting, dry-brush sumi outlines with flying-white texture, cinnabar and indigo on yellowed xuan paper` | `flat color, vector, glossy, airbrush` |
+
+**写实词残留是二次元最大的破坏源**：`pores, camera flash, film grain, unretouched` 任意一个留下，
+都会把画面推回照片；只写 `cel shading` 一个词也切不动，因为正文其余描述仍在说写实肤质。
+
+**（2）精修与松弛按部位分配。** 二次元最常出两种废图：**笔触松到脸上的半成品**、**全图锐化的塑料立绘**。
+解法是把完成度分区写死：
+
+```text
+High-taste 2D digital painting with selective focus: finely rendered luminous facial features and
+delicate hair strands, contrasted against expressive breathable painterly gouache brushwork on the
+clothing and a softly blurred background. Muted low-saturation palette of dusty blue, warm cream and
+desaturated terracotta. Zero rough sketch lines.
+```
+
+三条派生规则（都很具体，避免踩）：
+
+1. **衣服不写复杂花纹**：`golden floral embroidery` 会抢注意力 → 写 `plain matte fabric blocks, no gaudy patterns`；
+2. **发髻写「微松」**：`neat round twin buns` 会变成两个黑球 → `slightly loose round buns with airy translucent wisps`；
+3. **眼睛不写 `jewel-like, sparkling, ultra detailed`**：会触发大头大眼幼态脸 → `luminous, water-clear eyes with soft highlights`。
+
+脸靠三个锚点（`softly tapered chin`、`slender neck`、`half-lidded, languid`），手写
+`relaxed hands with five distinct fingers`；年龄用正面词（`slender, tall, teenage`）而不要靠否定式
+（`neither a 10-year-old`）——否定式里的 `10-year-old` 仍可能被模型抽出来用。
+
+**（3）二次元专属负面层**：在 §12/§15 的负面基础上补
+`oversized head, big round babyface, short stubby neck, wide-open staring eyes, plastic skin, oversaturated neon colors, gaudy gold embroidery, thick black outlines, photorealistic, photograph, camera flash, film grain, microscopic pores, 3d render`。
+**要出字幕时，负面里必须去掉 `text` 与 `watermark`**，否则字幕会被一起压掉。
+
+### §9.2 LoRA 触发词的写法纪律（MOSS 文本编码器是 Qwen3.5-9B）
+
+MOSS-Image 的文本编码器是**冻结的 Qwen3.5-9B**，`<|...|>` 是**结构 token**，写法非常敏感：
+
+- **第一行、整行、无空格、句末不加句号、紧跟换行**；
+- `<|artist|>fkey<|/artist|>` 与 `<|artist|> fkey <|/artist|>.` **不是同一个 token 序列**，
+  加了空格会明显削弱触发效果；
+- 风格不够强时，**先检查这一行**，再考虑调强度；
+- **触发词放开头还是可省略，取决于该 LoRA 的作者**：有的要求开头整行，有的**不用触发词**
+  （直接在正文写 `anime character` / `anime characters` 反而更稳）；按模型卡说明来；
+- **强度、步数、CFG、Shift 一律不写进提示词**（属工作流参数）。
+
+完整规则、风格词表、LoRA 参数与出处见 `references/moss-anime-aesthetics.md`。
 
 ## §10 提示词写法建议（兼容三种流派）
 

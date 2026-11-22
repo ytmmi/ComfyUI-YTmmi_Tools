@@ -942,6 +942,18 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "注意：本节点只读取文本指导、**不执行任何脚本**；若下游运行环境没有 shell，"
             "请按 `references/layout.md` 的换算规则自行换算为 `abs_centralized` / `yxyx` "
             "整数单行 JSON，换算方式必须与脚本一致。"
+            "**二次元美学要点**（官方 USERGUIDE + 同 seed 社区实测）：① **画种词整组替换**——"
+            "开头放一整组画种词（anime screencap / manga page / watercolor / impasto / chibi …）"
+            "并**同步删掉冲突词**，任何一个写实词残留（pores / camera flash / film grain）都会"
+            "把画面推回照片，单独一个 `cel shading` 也切不动；"
+            "② **精修与松弛按部位分配**——脸与发丝精修、衣服与背景保留笔触并写 "
+            "`Zero rough sketch lines`，可同时避开「草稿脸」与「塑料页游立绘」；"
+            "③ **LoRA 触发词是结构 token**——文本编码器为冻结的 Qwen3.5-9B，"
+            "`<|artist|>fkey<|/artist|>` 必须整行放在第一行、无空格、无句尾句号，"
+            "部分二次元 LoRA 反而**不用触发词**更稳（正文写 `anime character`）；"
+            "强度 / 步数 / CFG / Shift 一律不进提示词。"
+            "细化规则在 `moss-anime-prompt-template` 的 §9.1–§9.2 与其 "
+            "`references/moss-anime-aesthetics.md`。"
             "该家族不生成图片、不调用外部 API。"
             + GENERAL_SKILL_HINT
         )

@@ -1,7 +1,7 @@
 ---
 name: moss-image-prompt-enhancer
 description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Compatible with three prompt-writing styles (natural language for atmosphere/camera/narrative, tag strings for precise element control, and a recommended hybrid of both). Use for prompt enhancement, image composition and text placement; this skill does not generate images.
-version: 1.3.5
+version: 1.4.0
 ---
 
 # MOSS-Image Prompt Enhancer
@@ -48,6 +48,26 @@ not a request for Chinese). Never add an unsolicited translation or second promp
 punctuation, capitalization and requested line breaks. A quoted sentence in an
 instruction is not necessarily text to render: distinguish visible wording from
 reference material and constraints.
+
+## Anime aesthetics (MOSS-specific)
+
+Anime requests have two extra rules beyond the generic caption advice; both come from the
+official user guide plus same-seed community tests, and both are inlined in
+`moss-anime-prompt-template` §9.1–§9.2:
+
+- **Swap the whole medium, not one adjective.** Open with a complete medium group
+  (`anime screencap, TV anime broadcast screenshot, cel shading, flat anime coloring`) and
+  delete the now-contradicting wording. Any surviving realism token — `pores, camera flash,
+  film grain, unretouched` — pulls the render back to a photograph, and `cel shading` alone
+  cannot outvote 150 words of skin detail.
+- **Split finish by region.** Sharply finish face and hair, keep brushwork loose on clothing and
+  background, and add `Zero rough sketch lines`. This is the fix for both failure modes: the
+  half-finished sketch face and the over-sharpened plastic game portrait.
+
+MOSS-Image's text encoder is a frozen Qwen3.5-9B and `<|...|>` is a structural token, so LoRA
+triggers must sit on their own first line with no inner spaces and no trailing period; some
+anime LoRAs are better used with no trigger at all (`anime character` in prose). Never put
+strength, steps, CFG or shift into the prompt.
 
 ## Anime and character routing
 

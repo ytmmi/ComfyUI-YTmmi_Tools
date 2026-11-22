@@ -58,6 +58,8 @@ skills 的编写方式见 [custom_skills/README.md](custom_skills/README.md)。
 - [Anima 模型卡](https://huggingface.co/circlestone-labs/Anima) / [ComfyUI 官方教程](https://docs.comfy.org/tutorials/image/anima/anima) — Anima skills 依据
 - [moss-image-prompt-enhancer](skills/moss-image-prompt-enhancer/SKILL.md) — MOSS-Image 提示词增强 skills
 - [moss-anime-prompt-template](skills/moss-anime-prompt-template/SKILL.md) — MOSS 二次元提示词模板（sfw 版）
+- [OpenMOSS/MOSS-Image USERGUIDE](https://github.com/OpenMOSS/MOSS-Image) — MOSS-Image 官方参数与提示词规范
+- [silver-moss-image-prompt-skill](https://github.com/jialanhu0915/silver-moss-image-prompt-skill) — MOSS 二次元通道（画种整组替换 / 精修分区）社区方法
 - [Comfyui-K2-Editorial](https://github.com/lingdongbudong/Comfyui-K2-Editorial) — Krea2 长文提示词装配（母题整块 + 有限替换位）
 - [krea-ai/krea-2](https://github.com/krea-ai/krea-2) — Krea 2 官方提示词指南（`docs/prompting.md` / `docs/expansion.txt`）
 - [Krea 2 指南](https://www.krea.ai/docs/user-guide/features/krea-2) — Creativity 四档、Intensity / Complexity / Movement 滑杆、风格参考与情绪板
