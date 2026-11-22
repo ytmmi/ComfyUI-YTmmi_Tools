@@ -17,12 +17,13 @@ skills 目录约定（与上游 ComfyUI_Qwen_H3_Prompt 保持一致）：
 - 内置 skills 优先，custom_skills/ 中同 id 的 skills 不覆盖内置；
 - skills 内容仅作为模型提示词指导，不会执行其中声明的脚本、工具或网络调用。
 
-任务家族（「模式」仅在「选择skills」= 自动 时生效，用于筛选清单）：
-- H3-*：MiniMax H3 视频（排除 Qwen-Image 与 Anima 家族）；
-- qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写（各只列本家族 1 个）；
+任务家族（「模式」仅在「选择skills」= 自动 时生效，用于筛选清单；
+除 Auto 外每个选项都是首字母大写的 TitleCase 家族名）：
+- H3-video：MiniMax H3 视频（五个旧生成模式合并为一档，排除各图像家族）；
+- Qwen-image-t2i / Qwen-image-edit：Qwen-Image 2.1 图像提示词改写（各只列本家族 1 个）；
 - Anima：Anima（CircleStone Labs × Comfy Org）二次元插画提示词家族，
   清单只列 id 以 anima 开头的 skills（12 个 Anima skills 同属该家族）；
-- moss：MOSS-Image 图像提示词增强家族（moss-image-prompt-enhancer：
+- Moss：MOSS-Image 图像提示词增强家族（moss-image-prompt-enhancer：
   caption / 像素级 Layout 两种交付物 + 本地编译脚本，不生成图片）；
 - Krea2：Krea 2（Krea-2 / K2，单流 DiT + 自然语言 caption）图像提示词家族，
   清单只列 id 以 krea2 开头的 skills（基础写作 / 二次元 / 编辑级长文三支）。
@@ -64,38 +65,43 @@ DEFAULT_SKILL_ID = "h3-prompt-writing"
 # 模式选项：既用于选择 h3-prompt-writing 的参考资料，也用于按「任务家族」筛选
 # 「自动」清单中列出的 skills（见 filter_registry_for_mode）。
 #
-# - auto：不筛选，列出全部 skills；h3-prompt-writing 同时提供两份指南；
-# - H3-*：H3 视频任务家族（h3-prompt-writing + 8 个风格类 skills），
-#   且按具体生成模式只提供对应的一份指南（ref2va 用全参考，其余用基础）；
-# - qwen-image-*：Qwen-Image 2.1 图像提示词改写家族（文生图 / 图像编辑）；
+# **命名约定（首字母大写）**：除保留字 `Auto` 外，每个选项都是 TitleCase 家族名：
+# `Auto` / `H3-video` / `Qwen-image-t2i` / `Qwen-image-edit` / `Anima` / `Moss` / `Krea2`。
+#
+# - Auto：不筛选，列出全部 skills；h3-prompt-writing 同时提供两份指南；
+# - H3-video：H3 视频任务家族的**合并档**（原本 t2va/i2va/fl2va/l2va/ref2va 五个
+#   生成模式合并为一项），列出 h3-prompt-writing + 8 个风格类 skills，并把
+#   基础指南与全参考指南**两份一起**加载（合并后不再按生成模式二选一）；
+# - Qwen-image-t2i / Qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族；
 # - Anima：Anima 二次元插画任务家族（12 个 anima-* skills）；
-# - moss：MOSS-Image 图像提示词增强家族（默认交付 JSON Layout：全局描述 + 局部方框）；
+# - Moss：MOSS-Image 图像提示词增强家族（默认交付 JSON Layout：全局描述 + 局部方框）；
 # - Krea2：Krea 2 自然语言 caption 家族（基础写作 / 二次元 / 编辑级长文）。
 #
 # 另外，id 以 image- 开头的「图像通用 skills」（构图 / 配色等与模型无关的图像工艺）
 # **在所有模式下都会并入自动清单**（见 filter_registry_for_mode）。
 #
-# 解析时同时兼容带前缀与不带前缀的旧写法（旧工作流仍可加载）。
-MODE_PREFIX = "H3-"
-MODE_AUTO = "auto"
-MODE_QWEN_T2I = "qwen-image-t2i"
-MODE_QWEN_EDIT = "qwen-image-edit"
+# 解析时同时兼容旧写法（旧工作流仍可加载）：`auto`、`H3-t2va` 等五个生成模式、
+# 以及小写的 qwen-image-* / moss。
+MODE_AUTO = "Auto"
+MODE_H3_VIDEO = "H3-video"
+MODE_QWEN_T2I = "Qwen-image-t2i"
+MODE_QWEN_EDIT = "Qwen-image-edit"
 MODE_ANIMA = "Anima"
-MODE_MOSS = "moss"
+MODE_MOSS = "Moss"
 MODE_KREA2 = "Krea2"
 MODE_OPTIONS = (
     MODE_AUTO,
-    "H3-t2va",
-    "H3-i2va",
-    "H3-fl2va",
-    "H3-l2va",
-    "H3-ref2va",
+    MODE_H3_VIDEO,
     MODE_QWEN_T2I,
     MODE_QWEN_EDIT,
     MODE_ANIMA,
     MODE_MOSS,
     MODE_KREA2,
 )
+
+# H3 家族的「合并档」：旧的五个生成模式（t2va/i2va/fl2va/l2va/ref2va）在
+# normalize_mode 里一律归并为 MODE_H3_VIDEO，旧工作流保存的值仍然可用。
+H3_GENERATION_MODES = ("t2va", "i2va", "fl2va", "l2va", "ref2va")
 
 # Qwen-Image 提示词改写类 skills 的 id 标记（用于区分任务家族）
 QWEN_IMAGE_MARKERS = ("qwen-image",)
@@ -145,7 +151,7 @@ GENERAL_SKILL_HINT = (
 )
 
 # 各「任务家族」模式允许出现在「自动」清单中的 skills。
-# 未在此表且非 H3-* 的模式（即 auto）不做筛选。
+# 未在此表且非 H3-video 的模式（即 Auto）不做筛选。
 MODE_SKILL_ALLOWLIST = {
     MODE_QWEN_T2I: ("qwen-image-t2i-prompt",),
     MODE_QWEN_EDIT: ("qwen-image-edit-prompt",),
@@ -684,30 +690,42 @@ def _read(path: Path) -> str:
 
 
 def normalize_mode(mode: str) -> str:
-    """规范化模式取值：转小写并去掉 H3- 前缀，返回规范化的模式名。
+    """规范化模式取值，返回 TitleCase 的规范家族名。
 
-    - `H3-t2va` → `t2va`（H3 生成模式：t2va/i2va/fl2va/l2va/ref2va）
-    - `qwen-image-t2i` / `qwen-image-edit` → 原样保留
-    - `Anima` / `anima-text2image` → `Anima`（家族模式，大小写与 anima- 子模式均兼容）
-    - `moss` / `moss-image-prompt-enhancer` → `moss`（MOSS-Image 家族，moss- 子模式均归并）
-    - `Krea2` / `krea2-prompt-writing` → `Krea2`（Krea 2 家族，krea2- 子模式均归并）
-    - 空 → `auto`
+    规范值（首字母大写，与「模式」下拉的选项一一对应）：
 
-    兼容带前缀（H3-t2va）、不带前缀（t2va）与带家族前缀（anima-text2image、
-    moss-image-prompt-enhancer）等多种写法，旧工作流保存的值仍可用。
+    - `Auto`：不筛选，列出全部 skills；
+    - `H3-video`：H3 视频家族**合并档**——旧的 `H3-t2va` / `H3-i2va` /
+      `H3-fl2va` / `H3-l2va` / `H3-ref2va` 与不带前缀的 `t2va` 等一律归并到这里；
+    - `Qwen-image-t2i` / `Qwen-image-edit`：Qwen-Image 提示词改写家族；
+    - `Anima` / `anima-text2image` → `Anima`（家族模式，anima- 子模式均归并）；
+    - `Moss` / `moss-image-prompt-enhancer` → `Moss`（moss- 子模式均归并）；
+    - `Krea2` / `krea2-prompt-writing` → `Krea2`（krea2- 子模式均归并）；
+    - 空 → `Auto`。
+
+    大小写不敏感：旧工作流保存的 `auto` / `moss` / `qwen-image-t2i` 等写法
+    仍会映射到对应的 TitleCase 家族名，不会失效。
     """
     value = str(mode or "").strip().casefold()
-    if value in (MODE_QWEN_T2I, MODE_QWEN_EDIT):
-        return value
+    if not value:
+        return MODE_AUTO
+    # 兼容下划线写法（H3_VIDEO / qwen_image_t2i 等）
+    value = value.replace("_", "-")
+    if value in (MODE_QWEN_T2I.casefold(), MODE_QWEN_EDIT.casefold()):
+        return MODE_QWEN_T2I if value == MODE_QWEN_T2I.casefold() else MODE_QWEN_EDIT
     if value == MODE_ANIMA.casefold() or value.startswith(f"{MODE_ANIMA.casefold()}-"):
         return MODE_ANIMA
-    if value == MODE_MOSS or value.startswith(f"{MODE_MOSS}-"):
+    if value == MODE_MOSS.casefold() or value.startswith(f"{MODE_MOSS.casefold()}-"):
         return MODE_MOSS
     if value == MODE_KREA2.casefold() or value.startswith(f"{MODE_KREA2.casefold()}-"):
         return MODE_KREA2
-    if value.startswith(MODE_PREFIX.casefold()):
-        value = value[len(MODE_PREFIX):]
-    return value or MODE_AUTO
+    # H3 视频家族：合并档 + 五个旧生成模式（带不带 H3- 前缀都认）
+    if value in (MODE_H3_VIDEO.casefold(), "h3-video", "h3"):
+        return MODE_H3_VIDEO
+    for generation in H3_GENERATION_MODES:
+        if value == generation or value == f"{MODE_H3_VIDEO.split('-')[0].casefold()}-{generation}":
+            return MODE_H3_VIDEO
+    return MODE_AUTO
 
 
 def is_qwen_image_mode(mode: str) -> bool:
@@ -731,12 +749,12 @@ def is_krea2_mode(mode: str) -> bool:
 
 
 def is_h3_mode(mode: str) -> bool:
-    """判断模式是否属于 H3 视频任务家族（含 auto 之外的 H3-* 生成模式）。"""
-    return normalize_mode(mode) in {"t2va", "i2va", "fl2va", "l2va", "ref2va"}
+    """判断模式是否属于 H3 视频任务家族（合并档 H3-video，兼容旧生成模式写法）。"""
+    return normalize_mode(mode) == MODE_H3_VIDEO
 
 
 def filter_registry_for_mode(registry, mode: str):
-    """按模式的任务家族筛选 skills 列表（auto 返回原列表）。
+    """按模式的任务家族筛选 skills 列表（Auto 返回原列表）。
 
     任务家族筛选的意义：模式已表明任务类型时，清单里不应再出现无关家族的
     skills，避免模型路由到错误家族（如选 qwen-image-t2i 却读到 H3 视频 skills）。
@@ -744,13 +762,13 @@ def filter_registry_for_mode(registry, mode: str):
     **图像通用 skills（id 以 image- 开头，见 is_general_skill）是唯一例外：
     它们在所有模式下都会并入清单**，作为跨家族常驻的图像工艺基线。
 
-    - qwen-image-t2i / qwen-image-edit：该家族对应 skills + 全部通用 skills；
+    - Qwen-image-t2i / Qwen-image-edit：该家族对应 skills + 全部通用 skills；
     - Anima：Anima 家族（id 以 anima 开头的 12 个 skills）+ 全部通用 skills；
-    - moss：MOSS-Image 家族（id 以 moss 开头的 skills）+ 全部通用 skills；
+    - Moss：MOSS-Image 家族（id 以 moss 开头的 skills）+ 全部通用 skills；
     - Krea2：Krea 2 家族（id 以 krea2 开头的 skills）+ 全部通用 skills；
-    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image、Anima、
+    - H3-video：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image、Anima、
       MOSS 与 Krea2）+ 全部通用 skills；
-    - auto：不筛选，返回全部（通用 skills 自然在内）。
+    - Auto：不筛选，返回全部（通用 skills 自然在内）。
     """
     normalized = normalize_mode(mode)
     allow = MODE_SKILL_ALLOWLIST.get(normalized)
@@ -783,7 +801,7 @@ def filter_registry_for_mode(registry, mode: str):
 def mode_family_hint(mode: str = MODE_AUTO) -> str:
     """返回当前模式的「任务家族」说明，用于自动清单提示模型按家族路由。
 
-    auto 时返回空串（清单不做家族提示，保持中性）。
+    Auto 时返回空串（清单不做家族提示，保持中性）。
     """
     normalized = normalize_mode(mode)
     if normalized == MODE_AUTO:
@@ -877,8 +895,11 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         )
     if is_h3_mode(normalized):
         return (
-            "当前模式：MiniMax H3 视频——本清单已排除 Qwen-Image、Anima、MOSS-Image 与"
+            "当前模式：MiniMax H3 视频（合并档，已含原 t2va / i2va / fl2va / l2va / ref2va "
+            "五种生成写法）——本清单已排除 Qwen-Image、Anima、MOSS-Image 与"
             "Krea2 图像提示词家族的 skills（image-* 图像通用 skills 仍保留）；"
+            "h3-prompt-writing 的**基础指南与全参考指南两份都已提供**，"
+            "按用户实际要做的任务取用：纯文生视频用基础指南，带参考素材用全参考指南；"
             "图像提示词需求请改用对应的图像家族模式；"
             "分镜的画面构图与配色可以直接借助 image-* 通用 skills。"
             + GENERAL_SKILL_HINT
@@ -890,14 +911,14 @@ def resolve_effective_mode(skill_id, mode) -> str:
     """联动规则：**只有「选择skills」为「自动」时，「模式」才生效**。
 
     - `选择skills` = 自动 → 返回规范化后的模式（用于按任务家族筛选清单）；
-    - `选择skills` = 具体 skills（或为空，将回退到默认 skills）→ 返回 `auto`，
+    - `选择skills` = 具体 skills（或为空，将回退到默认 skills）→ 返回 `Auto`，
       即模式被中和：不筛选，且加载该 skills 的全部参考资料。
 
     这样「模式」在语义上始终只描述「自动」模式下的任务家族；手动指定 skills 时
     由该 skills 自身决定输出，不受模式干扰。
 
     ⚠️ 这里只做**计算上的中和**，绝不改写控件值：前端也**不会**把「模式」控件切回
-    auto（早期版本会，导致「选了模式，下次运行又回到自动」）。用户选的模式会原样
+    Auto（早期版本会，导致「选了模式，下次运行又回到自动」）。用户选的模式会原样
     随工作流保存，切回「自动」后立即重新生效。
     """
     if str(skill_id or "").strip() == AUTO_SELECTION:
@@ -906,18 +927,19 @@ def resolve_effective_mode(skill_id, mode) -> str:
 
 
 def _h3_guides(mode: str) -> tuple:
-    """h3-prompt-writing 的参考资料选择：全参考模式用 ref-en，其余用 base-en。"""
-    normalized = normalize_mode(mode)
-    if normalized == "ref2va":
-        return ("ref-en.txt",)
-    if normalized in {"t2va", "i2va", "fl2va", "l2va"}:
-        return ("base-en.txt",)
+    """h3-prompt-writing 的参考资料选择。
+
+    合并档 `H3-video` 把原先的 t2va/i2va/fl2va/l2va/ref2va 五个生成模式并成一项，
+    不再按生成模式二选一：**基础指南与全参考指南两份一起给**，由模型按用户实际
+    要做的任务（纯文生视频 / 带参考素材）自行取用。Auto 档同理给两份。
+    """
+    # 合并后不再按生成模式分叉：H3-video 与 Auto 都给两份指南
     return ("base-en.txt", "ref-en.txt")
 
 
 def skill_instructions(
     skill_id: str,
-    mode: str = "auto",
+    mode: str = MODE_AUTO,
     max_chars: int = MAX_CHARS_DEFAULT,
     include_references: bool = True,
     builtin_root=None,
@@ -1034,7 +1056,7 @@ def build_skills_manifest(
     只包含 skills 的 id 与描述（不含正文），由模型按需请求读取正文，
     实现渐进式披露（progressive disclosure）。
 
-    模式为非 auto 时按「任务家族」筛选清单（见 filter_registry_for_mode），
+    模式为非 Auto 时按「任务家族」筛选清单（见 filter_registry_for_mode），
     避免模型路由到无关家族的 skills。
     """
     registry = filter_registry_for_mode(
@@ -1132,7 +1154,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit / Anima / moss / Krea2（非 auto 时按任务家族筛选自动清单）；image-* 图像通用 skills（构图 / 配色等模型无关工艺）在所有模式下都会并入清单'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 Auto / H3-video / Qwen-image-t2i / Qwen-image-edit / Anima / Moss / Krea2（非 Auto 时按任务家族筛选自动清单；H3-video 为原 t2va/i2va/fl2va/l2va/ref2va 五档合并）；image-* 图像通用 skills（构图 / 配色等模型无关工艺）在所有模式下都会并入清单'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1161,13 +1183,14 @@ class SkillsManagerNode:
                         "tooltip": "任务模式，仅在「选择skills」为「自动」时生效"
                         "（选具体 skills 时自动失效，但模式值本身会被保留，"
                         "切回「自动」后立即重新生效，不会被自动刷新改动）。"
-                        "auto：不筛选，列出全部 skills，h3-prompt-writing 同时提供基础与全参考两份指南；"
-                        "H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va：H3 视频家族"
-                        "（H3-ref2va 只用全参考指南，其余只用基础指南）；"
-                        "qwen-image-t2i / qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族；"
+                        "Auto：不筛选，列出全部 skills，h3-prompt-writing 同时提供基础与全参考两份指南；"
+                        "H3-video：MiniMax H3 视频家族合并档"
+                        "（原 t2va / i2va / fl2va / l2va / ref2va 五种生成写法合为一档，"
+                        "基础指南与全参考指南两份一起给）；"
+                        "Qwen-image-t2i / Qwen-image-edit：Qwen-Image 2.1 图像提示词改写家族；"
                         "Anima：Anima（CircleStone Labs × Comfy Org）二次元插画家族"
                         "（列出 anima-* 的 12 个 skills）；"
-                        "moss：MOSS-Image 图像提示词增强家族"
+                        "Moss：MOSS-Image 图像提示词增强家族"
                         "（列出 moss-* 的 skills，默认交付 JSON Layout：全局描述 + 局部方框）；"
                         "Krea2：Krea 2（Krea-2 / K2）自然语言 caption 家族"
                         "（列出 krea2-* 的 skills：基础写作 / 二次元 / 编辑级长文）；"
@@ -1287,7 +1310,7 @@ class SkillsManagerNode:
         effective_mode = resolve_effective_mode(skill_id, mode)
 
         # 「自动」：只输出 skills 清单与读取协议，不加载任何正文（渐进式披露）。
-        # 模式为非 auto 时按任务家族筛选清单。
+        # 模式为非 Auto 时按任务家族筛选清单。
         if skill_id == AUTO_SELECTION:
             text = build_skills_manifest(max_chars=max_chars, mode=effective_mode)
             if extra:
@@ -1332,7 +1355,8 @@ __all__ = [
     "BUILTIN_SKILLS_DIR",
     "CUSTOM_SKILLS_DIR",
     "MODE_OPTIONS",
-    "MODE_PREFIX",
+    "MODE_H3_VIDEO",
+    "H3_GENERATION_MODES",
     "MODE_AUTO",
     "MODE_QWEN_T2I",
     "MODE_QWEN_EDIT",

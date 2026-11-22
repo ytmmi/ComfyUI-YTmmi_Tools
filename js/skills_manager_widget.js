@@ -32,7 +32,8 @@ app.registerExtension({
     if (nodeData.name !== "SkillsManagerNode") return;
 
     const AUTO_SELECTION = "自动";
-    const MODE_AUTO = "auto"; // 与 Python 端 MODE_AUTO 一致
+    const MODE_AUTO = "Auto"; // 与 Python 端 MODE_AUTO 一致（首字母大写）
+    const LEGACY_MODE_AUTO = "auto"; // 旧工作流保存的小写值仍视为「未选择模式」
 
     // 按钮文字反馈的停留时间（毫秒）
     const STATUS_HOLD_MS = 2200;
@@ -162,7 +163,8 @@ app.registerExtension({
       const skills = String(skillsWidget?.value ?? "").trim();
       const mode = String(modeWidget?.value ?? "").trim();
       const skillsChosen = skills !== "" && skills !== AUTO_SELECTION;
-      const modeChosen = mode !== "" && mode !== MODE_AUTO;
+      const modeChosen =
+        mode !== "" && mode !== MODE_AUTO && mode !== LEGACY_MODE_AUTO;
       return skillsChosen || modeChosen;
     };
 
