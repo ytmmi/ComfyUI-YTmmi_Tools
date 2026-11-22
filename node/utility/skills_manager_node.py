@@ -142,8 +142,9 @@ H3_IMAGE_SKILL_MARKERS = ("h3-image",)
 Z_IMAGE_SKILL_MARKERS = ("z-image",)
 
 # 「图像通用」skills 的 id 前缀（image-composition / image-color-harmony 等）。
-# 这类 skills 承载与具体模型无关的图像工艺（构图、配色等），因此在**所有模式**下
-# 都会并入自动清单，属于跨家族的常驻基线。
+# 这类 skills 承载与具体模型无关的七层美学工艺（构图 / 对比 / 光影明度 / 空间虚实 /
+# 配色 / 主题叙事 / 情感意境 + 入口），**每一组、每个模式的清单都会完整加载**，
+# 是跨家族的常驻基线；清单里单独成组并置顶（见 build_skills_manifest）。
 # 只用前缀匹配，避免把 qwen-image-t2i-prompt / moss-image-prompt-enhancer 误判进来。
 GENERAL_SKILL_MARKERS = ("image",)
 
@@ -164,8 +165,8 @@ ANIMA_FORMAT_NOTE = (
 # 「图像通用 skills」的家族提示：它们**在所有模式下都会并入清单**，
 # 必须在家族提示里说明，否则模型会把清单里的 image-* 当成「混入的其它家族」而不敢用。
 GENERAL_SKILL_HINT = (
-    "另外，清单里的 `image-*` 是**图像通用 skills**（承载与具体模型无关的七层美学工艺），"
-    "它们**在所有模式下都可用**，不属于任何单一模型家族："
+    "清单里单独成组的 `image-*` 是**图像通用基线层**（与具体模型无关的七层美学工艺）。"
+    "**这一组在每个模式的清单里都会加载**，属于跨家族的常驻基线，不是混进来的其它家族："
     "`image-aesthetics`（入口与七层路由：先判问题在哪层、按什么顺序修）、"
     "`image-composition`（构图：景别 / 机位 / 位置 / 分层）、"
     "`image-contrast`（对比：先看什么、什么被压下去）、"
@@ -1285,11 +1286,39 @@ def build_skills_manifest(
     family_hint = mode_family_hint(mode)
     if family_hint:
         lines.extend([family_hint, ""])
-    for spec in registry:
+
+    # 清单分两组：**图像通用基线（全组都加载）** 与 **本模式的家族 skills**。
+    # 通用层是跨家族的常驻基线，所有模式都会并入，因此在清单里单独成组并置顶，
+    # 让模型明确「这一组每个模式都有、是必读基线」，而不是当成混进来的其它家族。
+    general = [spec for spec in registry if is_general_skill(spec.id)]
+    family = [spec for spec in registry if not is_general_skill(spec.id)]
+
+    def _row(spec) -> str:
         label = f"（{spec.display_name}）" if spec.display_name else ""
-        lines.append(
-            f"- {spec.id}{label}: {_manifest_description(spec.description)}"
+        return f"- {spec.id}{label}: {_manifest_description(spec.description)}"
+
+    if general:
+        lines.extend(
+            [
+                f"# 图像通用基线（{len(general)} 个｜所有模式都会加载）",
+                "",
+                "这一组是**跨模型的图像工艺基线**，不属于任何单一家族，"
+                "**每个模式的清单里都会出现**；需要构图 / 对比 / 光影 / 空间 / 配色 /",
+                "叙事 / 情绪等通用工艺时直接按下面的 id 读取：",
+                "",
+            ]
         )
+        lines.extend(_row(spec) for spec in general)
+        lines.append("")
+
+    if family:
+        lines.extend(
+            [
+                f"# 家族 skills（{len(family)} 个｜当前模式）",
+                "",
+            ]
+        )
+        lines.extend(_row(spec) for spec in family)
     lines.extend(
         [
             "",
