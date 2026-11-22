@@ -96,7 +96,7 @@ She wears [服装，加 clean matte fabric blocks, without gaudy patterns], set 
 
 ## 七、色盘：自然语言优先于 HEX【社区】
 
-Layout 的 `summary.palette` 字段 USERGUIDE 未记载，效果未验证。**降级做法更稳**：
+Layout 的 `summary.palette` 字段 USERGUIDE 未记载（本地编译器接受该字段，但模型侧是否采纳未验证）。
 
 ```text
 Muted, sophisticated low-saturation palette of dusty blue, warm cream and desaturated terracotta.
@@ -104,6 +104,16 @@ dominated strictly by this palette
 ```
 
 并**删掉正文里与之冲突的具体颜色词**。
+
+三档方案（可靠性从高到低，**不要混用**）：
+
+| 档 | 做法 | 可靠性 |
+| --- | --- | --- |
+| A（默认） | 不写 `palette` 字段，色盘只写进 `summary.caption` | 高（已验证通道） |
+| B（可试） | `summary.palette` 数组 + caption 里同时写同一组色名 | 中（互相印证） |
+| C（不推荐） | 只写 `palette` 字段、caption 不提色 | 低（无兜底） |
+
+完整写法、item 拆分规矩、最小示例与专有坑见 `SKILL.md` §13.1。
 
 ## 八、LoRA：触发词与参数【模型卡】
 

@@ -1,7 +1,7 @@
 ---
 name: moss-anime-prompt-template
 description: 把二次元人物、IP 同人、场景插画、多人互动、海报与漫画需求写成 MOSS-Image-Base / MOSS-Image-SFT 可直接使用的正向提示词（Caption / Tag / Layout 三种交付），内置画风独立首句、人数与属性绑定、镜头与空间、光照因果、Layout 字段与坐标换算等硬规则，并兼容自然语言 / Tag 串 / 混合写法三种提示词流派（混合写法最推荐）。仅做提示词改写，不生成图片、不调用外部 API。
-version: 1.3.0
+version: 1.4.0
 ---
 
 # MOSS 二次元提示词模板（sfw 版）
@@ -555,6 +555,104 @@ Layout 是**结构化提示词**。框表达目标占位，不是硬裁切、姿
 | caption 说左，框却在右 | 文本与几何冲突 | 保持两者一致 |
 | 只写人物框，不写外观 | 角色身份缺失 | 每人 caption 独立绑定锚点 |
 | 只放 `text` 不给文字 caption | 缺少必要字段与排版意图 | 加 typography/surface 描述 |
+
+## §13.1 二次元 Layout：画风、配色与 `summary.palette` 的替代方案
+
+二次元一旦走 Layout，画风与配色就**不能只写在 summary.caption 的第一句**——item 的 caption 会
+独立被模型读取，画风与色盘要在**每一层都留锚点**，且**只留一种**配色表达方式。
+
+### 一、画风锚点的三处落位（缺一处就会漂）
+
+| 位置 | 写什么 | 不写什么 |
+| --- | --- | --- |
+| `summary.caption` 第一句 | 完整画风锚句（媒介 + 线条 + 上色 + 高光/色盘，见 §9.1） | 不在 item 里重复同一句 |
+| `summary.meta` | 只说"是什么"的媒介/题材：`["anime illustration", "cel shading", "key visual"]` | 质量词、评分、画师名 |
+| 每个 `character` / `object` 的 caption | **只描述该单元的可见属性**，用词与该画风一致 | 不写第二个画派、不写 `anime style` 空词 |
+
+**判据**：把任一条 item caption 单独拿出来看，它仍然应该是"这张二次元图里的一个东西"，
+而不是"一张照片里的一个东西"。出现 `pores`、`camera flash`、`film grain` 就说明画风断了。
+
+### 二、`summary.palette` 未验证：三档替代方案
+
+官方 USERGUIDE 的 Layout 说明里**没有记载 `summary.palette`**；本地编译器虽然接受该字段
+（`summary` 允许 `caption`/`meta`/`canvas`/`palette`，`items` 允许 `tags`/`palette`），
+但**模型侧是否真的按它上色没有验证**。按可靠性从高到低选一档，**不要混用两档**：
+
+| 档 | 做法 | 可靠性 | 适用 |
+| --- | --- | --- | --- |
+| **A（默认推荐）** | 不给 `palette` 字段，把色盘写进 `summary.caption`：`Muted low-saturation palette of dusty blue, warm cream and desaturated terracotta, dominated strictly by this palette.` | 高——走的是已验证的 caption 通道 | 所有情况，尤其没有把握时 |
+| **B（可试）** | `summary.palette: ["dusty blue", "warm cream", "desaturated terracotta"]` + 在 **`summary.caption` 里同时用自然语言写同一组色** | 中——字段与文本互相印证，字段失效也有文本兜底 | 想要结构化留档、或要批量复用时 |
+| **C（不推荐）** | 只写 `palette` 字段、caption 不提颜色 | 低——字段若不被采纳，画面将无配色约束 | 仅在做 A/B 实验时 |
+
+**三条纪律**：
+
+1. **不要写 HEX**：`#e8d5a3` 这类值在已验证通道里没有依据，色名 + 明度/饱和度形容词更稳；
+2. **不要在 item 里重复整套色盘**：item 的 `palette` 只写**该单元自己的**颜色（如
+   `["navy uniform", "red ribbon"]`），全局色盘只出现在 summary 一处；
+3. **不要与正文冲突**：写了"低饱和"，item caption 就不能出现 `vibrant neon`、`saturated gold`。
+
+### 三、二次元 Layout 的 item 拆分规矩
+
+| 单元 | label | 注意 |
+| --- | --- | --- |
+| 单人半身 | `character` | 一个完整人物一个框；**不要给脸和身体各建一个 character** |
+| 手持道具 | 并入该 `character` 的 caption | 除非道具需要独立移动/独立文字 |
+| 独立摆件 / 背景大件 | `object` | 框要覆盖它的整个可见范围 |
+| 台词气泡 / 字幕 / 标题 | `text` | `text` 存逐字原文，`caption` 写颜色/层级/字体倾向/载体 |
+| 漫画格背景 | `object` | 没有 `panel` 这个 label；格框用 `object` 描述，`canvas="multi_panel"` 标整体 |
+
+**二次元专属提醒**：
+
+- **给头发与衣摆留够框**：`character` 的框要能容下双马尾、长披风；用脸大小的框会导致它们被裁掉或被塞小；
+- **眼睛不靠框来控制**：想控制脸型仍要在 caption 写 `softly tapered chin`、`slender neck`，
+  外加 `relaxed hands with five distinct fingers`（Layout 不保证手部）；
+- **文字区要先留白**：给 `text` item 的框上方/周围留低细节区域，否则字会压在头发或高光上；
+- **多格重复出场**：同一角色在两格各出现时，**各自一个 character 项、各自完整重述身份特征**，
+  不要写"同上"（扁平数组里没有引用语义）。
+
+### 四、最小可用示例（1024×1024 草稿，不做坐标换算展示）
+
+```json
+{
+  "width": 1024,
+  "height": 1024,
+  "bbox_coord_space": "abs",
+  "bbox_format": "xyxy",
+  "summary": {
+    "meta": ["anime illustration", "cel shading", "key visual"],
+    "canvas": "single",
+    "caption": "An anime key visual in clean cel shading with hard shadow edges and crisp closed linework, on a muted low-saturation palette of dusty blue, warm cream and desaturated terracotta, dominated strictly by this palette.",
+    "palette": ["dusty blue", "warm cream", "desaturated terracotta"]
+  },
+  "items": [
+    {
+      "label": "character",
+      "caption": "A slender teenage girl in a navy school uniform with a red ribbon tie, ash-grey hair in slightly loose low twin buns with airy translucent wisps, softly tapered chin and slender neck, standing three-quarter and looking toward the upper right, both hands resting on the strap of her bag, five distinct fingers visible.",
+      "bbox": [96, 128, 592, 960]
+    },
+    {
+      "label": "text",
+      "caption": "Large pale cream Chinese title in a light serif with wide tracking, no backing panel, sitting in the empty sky band.",
+      "text": "星屑观测",
+      "bbox": [624, 96, 960, 224]
+    }
+  ]
+}
+```
+
+交付时按 §12「最终输出格式」换算成 `abs_centralized` + `yxyx` 单行紧凑 JSON，
+`summary.palette` 若使用则与 caption 中的色名保持一致；尺寸说明写在提示词之外。
+
+### 五、这条通道的专有坑
+
+| 症状 | 原因 | 修法 |
+| --- | --- | --- |
+| 每格画风不一样 | item caption 里混进了写实词或第二个画派 | 用 §9.1 的整组画种词，逐项删掉冲突词 |
+| 配色没生效 | 只写了 `palette` 字段 | 降到方案 A，把色盘写进 `summary.caption` |
+| 画面颜色比预期多 | caption 与 item 各自描述了不同颜色 | 全局色盘只在 summary；item 只写自身颜色 |
+| 双马尾被裁掉 / 衣服变成贴图 | character 框太小 | 扩大框到覆盖头发与衣摆的完整范围 |
+| 文字压在头发上 | 没给 text 框留低细节区 | 调整版式，把文字带留成空白或纯色 |
+| 两个人合成一个 | 只写了一个 character 项 | 每人一个 character 项，各自重述特征与动作 |
 
 ## §14 修改提示词
 

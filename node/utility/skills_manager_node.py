@@ -961,7 +961,10 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "`<|artist|>fkey<|/artist|>` 必须整行放在第一行、无空格、无句尾句号，"
             "部分二次元 LoRA 反而**不用触发词**更稳（正文写 `anime character`）；"
             "强度 / 步数 / CFG / Shift 一律不进提示词。"
-            "细化规则在 `moss-anime-prompt-template` 的 §9.1–§9.2 与其 "
+            "④ **走 Layout 时**：画风锚句只放 `summary.caption` 第一句、item caption 只写自身可见属性；"
+            "**`summary.palette` 未经验证**——默认降级为在 caption 里用自然语言写 2–3 个色名，"
+            "要用该字段时必须在 caption 里同时写同一组色（详见 §13.1）。"
+            "细化规则在 `moss-anime-prompt-template` 的 §9.1–§9.2、§13.1 与其 "
             "`references/moss-anime-aesthetics.md`。"
             "该家族不生成图片、不调用外部 API。"
             + GENERAL_SKILL_HINT
