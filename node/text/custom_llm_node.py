@@ -188,12 +188,19 @@ DEFAULT_MODELS: list = []
 MAX_IMAGES = 9
 
 # ── 渐进式披露（文本协议多轮按需读取）────────────────────────────────────
-# 当 skills 输入为「自动」清单时，模型可输出单行 READ: 指令请求读取某个
-# skills 的正文或参考文件，节点读取后追加到对话中继续请求，直到模型给出
-# 最终答案。不依赖接口的 tools/function calling 支持，兼容性最好。
+# 当 skills 输入为「自动」清单时，模型可输出 READ: 指令请求读取 skills 的正文或
+# 参考文件，节点读取后追加到对话中继续请求，直到模型给出最终答案。不依赖接口的
+# tools/function calling 支持，兼容性最好。
+#
+# **一轮可以同时读多个**（多 skills 组合处理）：
+# - 每行一条：`READ: a` 换行 `READ: b`；
+# - 一行多条：`READ: a b` / `READ: a, b` / `READ: a、b` / `READ: a + b`。
+# 同一轮里的目标会**一次性全部读取**并合并回注，不必一轮只读一个再等一次往返。
 READ_DIRECTIVE_RE = re.compile(
-    r"^\s*READ\s*[:：]\s*(?P<target>[^\s]+)\s*$", re.IGNORECASE | re.MULTILINE
+    r"^[ \t]*READ\s*[:：]\s*(?P<target>.+?)[ \t]*$", re.IGNORECASE | re.MULTILINE
 )
+# 一行内的多个读取目标分隔符（空白、中英文逗号 / 顿号 / 分号 / 加号）
+READ_TARGET_SEPARATORS_RE = re.compile(r"[\s,，、;；+]+")
 # 单次执行允许的最大往返轮数（防止模型不守协议导致死循环）
 MAX_SKILLS_ROUNDS_DEFAULT = 8
 # 单次读取的字符上限
@@ -2522,9 +2529,36 @@ class CustomLLMNode:
         match = READ_DIRECTIVE_RE.search(text)
         if not match:
             return None, text
-        target = match.group("target").strip().strip("`\"'<>")
-        remainder = (text[: match.start()] + text[match.end():]).strip()
-        return (target or None), remainder
+        targets, _remainder = CustomLLMNode.parse_read_directives(text)
+        return (targets[0] if targets else None), _remainder
+
+    @staticmethod
+    def parse_read_directives(text):
+        """从模型输出中解析**全部** READ: 指令目标（一轮可读多个 skills）。
+
+        支持两种写法，可混用：
+        - 每行一条：`READ: a` 换行 `READ: b`；
+        - 一行多条：`READ: a b` / `READ: a, b` / `READ: a、b` / `READ: a + b`。
+
+        返回 (目标列表, 去掉全部指令行后的剩余文本)。目标按出现顺序去重；
+        没有指令时返回 ([], 原文)。这里只做字符串拆分，合法性（是否存在、
+        是否在白名单内）由 `resolve_skill_read` 负责。
+        """
+        if not isinstance(text, str):
+            return [], ""
+        matches = list(READ_DIRECTIVE_RE.finditer(text))
+        if not matches:
+            return [], text
+
+        targets = []
+        for match in matches:
+            raw = match.group("target").strip().strip("`\"'<>")
+            for piece in READ_TARGET_SEPARATORS_RE.split(raw):
+                piece = piece.strip().strip("`\"'<>")
+                if piece:
+                    targets.append(piece)
+        remainder = READ_DIRECTIVE_RE.sub("", text).strip()
+        return list(dict.fromkeys(targets)), remainder
 
     @staticmethod
     def resolve_skill_read(target, allowed_skills=None):
@@ -2672,10 +2706,10 @@ class CustomLLMNode:
                 convo.extend(tool_messages)
                 continue
 
-            target, _remainder = self.parse_read_directive(reply.text)
+            targets, _remainder = self.parse_read_directives(reply.text)
 
             # 无读取指令 → 本轮即最终答案
-            if not target:
+            if not targets:
                 steps.append(
                     RunStep(
                         index=step_index,
@@ -2692,46 +2726,71 @@ class CustomLLMNode:
                 final_text = reply.text
                 break
 
-            # 解析目标并读取文件
-            try:
-                skill_id, relative_path = self.resolve_skill_read(
-                    target, allowed_skills=allowed_skills
-                )
-                file_text = read_skill_file(
-                    skill_id, relative_path, max_chars=read_max_chars
-                )
-            except Exception as exc:
-                steps.append(
-                    RunStep(
-                        index=step_index,
-                        action=f"读取失败（{exc}）→ 已把错误回注给模型重试",
-                        reasoning=reply.reasoning,
-                        reply=reply.text,
-                        source=reply.source,
-                        usage=reply.usage,
-                        elapsed=reply.elapsed,
-                        tool_calls=reply.tool_calls,
+            # ── 本轮请求的全部目标一次性读取（一轮可组合多个 skills）──
+            # 单个目标失败不影响其它目标：成功的照常注入，失败的单独回注，
+            # 让模型下一轮只重试失败的那几个。
+            blocks = []
+            failures = []
+            limit_hit = ""
+            round_reads = []
+            for target in targets:
+                try:
+                    skill_id, relative_path = self.resolve_skill_read(
+                        target, allowed_skills=allowed_skills
                     )
-                )
-                # 读取失败：把错误回注给模型，让它改用正确的名称重试
-                convo.append({"role": "assistant", "content": reply.text})
-                convo.append(
-                    {
-                        "role": "user",
-                        "content": f"READ 指令执行失败：{exc}\n请改用正确的 skills 名称或路径重试。",
-                    }
-                )
-                continue
+                    file_text = read_skill_file(
+                        skill_id, relative_path, max_chars=read_max_chars
+                    )
+                except Exception as exc:
+                    failures.append(f"{target}（{exc}）")
+                    continue
 
-            # 累计上限保护：超出后不再注入，直接要求模型基于已有内容作答
-            if injected + len(file_text) > total_max_chars:
+                if injected + len(file_text) > total_max_chars:
+                    limit_hit = f"{skill_id}/{relative_path}"
+                    continue
+
+                injected += len(file_text)
+                reads.append(
+                    (f"{skill_id}/{relative_path}", skill_id, len(file_text))
+                )
+                round_reads.append(f"{skill_id}/{relative_path}")
+                blocks.append(
+                    f"# skills 内容：{skill_id}/{relative_path}\n\n{file_text}"
+                )
+
+            # 本轮一个都没读成（全部失败或全部撞上累计上限）
+            if not blocks:
+                if not failures and limit_hit:
+                    steps.append(
+                        RunStep(
+                            index=step_index,
+                            action=(
+                                f"已达累计上限（{total_max_chars:,} 字符），"
+                                f"未注入 {limit_hit}"
+                            ),
+                            reasoning=reply.reasoning,
+                            reply=reply.text,
+                            source=reply.source,
+                            usage=reply.usage,
+                            elapsed=reply.elapsed,
+                            tool_calls=reply.tool_calls,
+                        )
+                    )
+                    convo.append({"role": "assistant", "content": reply.text})
+                    convo.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "已达到 skills 内容累计上限，请基于已获得的内容直接给出最终答案，"
+                                "不要再请求读取。"
+                            ),
+                        }
+                    )
+                    continue
                 steps.append(
                     RunStep(
                         index=step_index,
-                        action=(
-                            f"已达累计上限（{total_max_chars:,} 字符），"
-                            f"未注入 {skill_id}/{relative_path}"
-                        ),
+                        action="读取失败（本轮全部目标）→ 已把错误回注给模型重试",
                         reasoning=reply.reasoning,
                         reply=reply.text,
                         source=reply.source,
@@ -2745,22 +2804,20 @@ class CustomLLMNode:
                     {
                         "role": "user",
                         "content": (
-                            "已达到 skills 内容累计上限，请基于已获得的内容直接给出最终答案，"
-                            "不要再请求读取。"
+                            "READ 指令执行失败：" + "；".join(failures)
+                            + "\n请改用正确的 skills 名称或路径重试。"
                         ),
                     }
                 )
                 continue
 
-            injected += len(file_text)
-            reads.append((f"{skill_id}/{relative_path}", skill_id, len(file_text)))
+            action = f"读取 {'、'.join(round_reads)}（共 {len(blocks)} 个文件）并回注对话"
+            if failures:
+                action += f"；{len(failures)} 个目标读取失败"
             steps.append(
                 RunStep(
                     index=step_index,
-                    action=(
-                        f"读取 {skill_id}/{relative_path}"
-                        f"（{len(file_text):,} 字符）并回注对话"
-                    ),
+                    action=action,
                     reasoning=reply.reasoning,
                     reply=reply.text,
                     source=reply.source,
@@ -2770,15 +2827,23 @@ class CustomLLMNode:
                 )
             )
 
+            note = (
+                "如需继续读取其它文件，请单独输出一行 READ: 指令"
+                "（一轮可写多行，或一行写多个目标）；"
+                "否则请直接给出最终答案。"
+            )
+            if failures:
+                note = "以下目标读取失败：" + "；".join(failures) + "。" + note
+            if limit_hit:
+                note = (
+                    f"已接近累计上限，{limit_hit} 未注入。请基于已获得的内容作答。"
+                    + note
+                )
             convo.append({"role": "assistant", "content": reply.text})
             convo.append(
                 {
                     "role": "user",
-                    "content": (
-                        f"# skills 内容：{skill_id}/{relative_path}\n\n{file_text}\n\n"
-                        "如需继续读取其它文件，请单独输出一行 READ: 指令；"
-                        "否则请直接给出最终答案。"
-                    ),
+                    "content": "\n\n".join(blocks) + "\n\n" + note,
                 }
             )
         else:
