@@ -4,7 +4,9 @@
 从指定文件夹批量加载图片，输出图像批次、当前种子与下一次读取位置。
 
 输入说明：
-- 路径：图片文件夹的绝对路径
+- 路径：可填**多个**路径，合并成一个批次。每行一个；也支持用 ; 或 | 分隔、
+  以 # 开头的行忽略。单个条目可以是文件夹、单张图片，或通配符（如 E:\\QQ\\*.png）。
+  文件夹内部先按「顺序」排序，再按输入顺序拼接；「去重」打开时同一张图只保留一份。
 - 顺序：文件排列方式（固定 / 随机 / 名称·时间·类型·大小的正序与反序）
 - 位置：从第几张开始输出（1 为起始），超出总数自动回绕
 - 种子：仅「顺序 = 随机」时用于打乱文件顺序
@@ -23,7 +25,10 @@
 「位置」的自动递增仍由后端维护（与官方生成后控制无关）：位置按批次递增，并通过
 ui 回填给前端，因此本节点保留 IS_CHANGED，确保每次执行都真正重新读取图片。
 """
+import glob
+import os
 import random
+import re
 from pathlib import Path
 
 try:
@@ -47,16 +52,92 @@ def _normalize_path(raw: str) -> str:
     return raw
 
 
-def _list_image_files(folder: str) -> list[Path]:
-    """递归（或非递归）列出文件夹下所有支持的图片文件。"""
+def _split_path_entries(raw: str) -> list[str]:
+    """把「路径」文本拆成路径条目列表。
+
+    支持多行输入，同一行还可以用 ; 或 | 分隔多个路径；空行与 # 开头的注释行忽略，
+    条目首尾的引号与空格会被去掉，因此可以直接粘贴资源管理器复制的路径。
+    """
+    entries: list[str] = []
+    if not raw:
+        return entries
+
+    text = str(raw).replace("\r\n", "\n").replace("\r", "\n")
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        for part in re.split(r"[;|]", line):
+            entry = _normalize_path(part)
+            if entry and entry not in (".", ".."):
+                entries.append(entry)
+    return entries
+
+
+def _list_image_files(folder: str, recursive: bool = False) -> list[Path]:
+    """列出文件夹下所有支持的图片文件；recursive 为 True 时包含子文件夹。"""
     p = Path(folder)
     if not p.is_dir():
         return []
-    files = []
-    for f in p.iterdir():
-        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS:
-            files.append(f)
-    return files
+
+    pattern = "**/*" if recursive else "*"
+    return [
+        f
+        for f in p.glob(pattern)
+        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
+    ]
+
+
+def _files_from_entry(
+    entry: str, recursive: bool = False
+) -> tuple[list[Path], list[str]]:
+    """解析单个路径条目 → (图片文件列表, 问题说明列表)。
+
+    条目可以是文件夹、单张图片，或含 * / ? 的通配符；无法解析时只记录问题，
+    不抛异常，让其余路径仍能正常加载。
+    """
+    problems: list[str] = []
+
+    if any(ch in entry for ch in "*?"):
+        matched = [Path(m) for m in glob.glob(entry, recursive=recursive)]
+        files = [
+            m for m in matched if m.is_file() and m.suffix.lower() in SUPPORTED_EXTENSIONS
+        ]
+        if not files:
+            problems.append(f"通配符没有匹配到图片：{entry}")
+        return files, problems
+
+    path = Path(entry)
+    if path.is_dir():
+        files = _list_image_files(str(path), recursive=recursive)
+        if not files:
+            problems.append(f"文件夹中没有找到支持的图片文件：{entry}")
+        return files, problems
+
+    if path.is_file():
+        if path.suffix.lower() in SUPPORTED_EXTENSIONS:
+            return [path], problems
+        problems.append(f"不是支持的图片格式：{entry}")
+        return [], problems
+
+    problems.append(f"路径不存在：{entry}")
+    return [], problems
+
+
+def _dedupe_files(files: list[Path]) -> list[Path]:
+    """按规范化后的绝对路径去重，保持首次出现的顺序。"""
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for f in files:
+        try:
+            key = os.path.normcase(str(f.resolve()))
+        except OSError:
+            key = os.path.normcase(str(f))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(f)
+    return unique
 
 
 def _sort_files(
@@ -126,7 +207,15 @@ class BatchLoadImagesNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "路径": ("STRING", {"default": "", "tooltip": "图片文件夹的绝对路径，如 E:\\QQ"}),
+                "路径": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "tooltip": "图片路径，可填多个（每行一个，或用 ; / | 分隔）；"
+                        "支持文件夹、单张图片与通配符，如 E:\\QQ、E:\\a.png、E:\\pic\\*.png",
+                    },
+                ),
                 "顺序": (
                     [
                         "固定",
@@ -159,6 +248,8 @@ class BatchLoadImagesNode:
                     },
                 ),
                 "批次": ("INT", {"default": 1, "min": 1, "max": 9999, "step": 1, "tooltip": "一次输出几张图片"}),
+                "去重": ("BOOLEAN", {"default": True, "tooltip": "多个路径指向同一张图时只保留一份"}),
+                "包含子文件夹": ("BOOLEAN", {"default": False, "tooltip": "文件夹路径是否递归读取子文件夹"}),
             },
             "hidden": {"unique_id": "UNIQUE_ID"},
         }
@@ -192,6 +283,8 @@ class BatchLoadImagesNode:
         位置: int = 1,
         种子: int = 0,
         批次: int = 1,
+        去重: bool = True,
+        包含子文件夹: bool = False,
         unique_id: str = "",
     ):
         if torch is None:
@@ -204,24 +297,36 @@ class BatchLoadImagesNode:
             {"current_pos": None, "last_ui_pos": None},
         )
 
-        # 1. 规范化路径
-        folder = _normalize_path(路径)
-        if not folder:
+        # 1. 拆分「路径」：多行 / ;| 分隔 / 文件夹 / 单图 / 通配符 都支持
+        entries = _split_path_entries(路径)
+        if not entries:
             raise ValueError("路径不能为空")
 
-        folder_path = Path(folder)
-        if not folder_path.is_dir():
-            raise ValueError(f"路径不存在或不是文件夹: {folder}")
+        # 2. 逐条解析并按输入顺序合并；单条出错只记录问题，其余路径照常加载
+        recursive = bool(包含子文件夹)
+        collected: list[Path] = []
+        problems: list[str] = []
+        for entry in entries:
+            entry_files, entry_problems = _files_from_entry(entry, recursive=recursive)
+            # 文件夹内部先按「顺序」排好再拼接，避免跨路径时顺序互相打乱
+            if entry_files and Path(entry).is_dir():
+                entry_files = _sort_files(entry_files, 顺序)
+            collected.extend(entry_files)
+            problems.extend(entry_problems)
 
-        # 2. 列出图片文件
-        files = _list_image_files(str(folder_path))
-        if not files:
-            raise ValueError(f"文件夹中没有找到支持的图片文件: {folder}")
+        if not collected:
+            detail = "；".join(problems) if problems else "未找到任何图片"
+            raise ValueError(f"没有找到支持的图片文件（共 {len(entries)} 个路径）：{detail}")
 
+        for problem in problems:
+            print(f"[批量加载图像] {problem}")
+
+        # 3. 去重：同一张图被多个路径命中时只保留一份
+        if 去重:
+            collected = _dedupe_files(collected)
+
+        files = collected
         total = len(files)
-
-        # 3. 排序
-        files = _sort_files(files, 顺序)
 
         # ── 种子（仅顺序为"随机"时使用）────────────────────────
         # 种子完全由前端官方 control_after_generate 机制接管：
