@@ -60,6 +60,7 @@ skills 的编写方式见 [custom_skills/README.md](custom_skills/README.md)。
 - [moss-anime-prompt-template](skills/moss-anime-prompt-template/SKILL.md) — MOSS 二次元提示词模板（sfw 版）
 - [Comfyui-K2-Editorial](https://github.com/lingdongbudong/Comfyui-K2-Editorial) — Krea2 长文提示词装配（母题整块 + 有限替换位）
 - [krea-ai/krea-2](https://github.com/krea-ai/krea-2) — Krea 2 官方提示词指南（`docs/prompting.md` / `docs/expansion.txt`）
+- [MiniMax-AI/MiniMax-H3-Image](https://github.com/MiniMax-AI/MiniMax-H3-Image) / [ComfyUI 教程](https://docs.comfy.org/tutorials/image/minimax/minimax-h3-image) — H3-Image 提示词规则（t2i / edit 指南、Prompting Tips）
 
 ## 许可证
 

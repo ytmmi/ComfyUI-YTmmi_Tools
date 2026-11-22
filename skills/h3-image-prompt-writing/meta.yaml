@@ -1,0 +1,8 @@
+display-name-zh: H3-Image 文生图提示词
+display-name-en: H3-Image Text-to-Image Prompt
+version: 1.0.0
+tag-cn: 提示词 / 图像 / H3-Image
+tag-en: Prompt / Image / H3-Image
+summary-cn: 把需求写成 MiniMax-H3-Image 的完成图描述（任务与交付物 → 版式与阅读顺序 → 主体状态 → 可见风格与光），逐字加引号写全画面文字、无文字时明确声明、数据与推导结果自己算，并按版面给出 1:3–3:1 的画幅建议。
+summary-en: Write MiniMax-H3-Image text-to-image prompts as a complete description of the finished image — task, layout, subject state, visible style and light — with every visible word quoted, an explicit no-text statement, exact data, and an aspect ratio that fits the layout.
+source: web

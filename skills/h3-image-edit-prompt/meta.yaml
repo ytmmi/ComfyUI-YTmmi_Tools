@@ -1,0 +1,8 @@
+display-name-zh: H3-Image 参考图编辑提示词
+display-name-en: H3-Image Edit Prompt
+version: 1.0.0
+tag-cn: 提示词 / 图像编辑 / H3-Image
+tag-en: Prompt / Image Edit / H3-Image
+summary-cn: 按官方顺序写 MiniMax-H3-Image 参考图编辑提示词（源定义 <Picture N>→<Subject N> → 目标总述与各源关系 → 变化与新增内容），用「完全保留 / 部分保留 / 属性迁移 / 弱参考」四类关系句保住该保留的部分，避免多参考图串味。
+summary-en: Write MiniMax-H3-Image reference-image edit prompts as one continuous paragraph in the official order — source definitions, target overview and per-source relationships, then completed changes — using fully/partially preserved, attribute transfer and weak reference statements.
+source: web

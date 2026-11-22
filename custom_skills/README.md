@@ -75,5 +75,5 @@ extra-note: 【输出要求】只输出严格合法的 JSON 对象，不要输�
 > 若「选择skills」选「自动」，节点只输出 skills 清单与 `READ:` 读取协议，
 > 由「自定义LLM」与模型多轮按需读取正文（渐进式披露，更省上下文）。
 > 此时「模式」还可按任务家族筛选清单：`Auto` / `H3-video` / `Qwen-image-t2i` /
-> `Qwen-image-edit` / `Anima` / `Moss` / `Krea2`（原 H3 的 t2va/i2va/fl2va/l2va/ref2va
+> `Qwen-image-edit` / `Anima` / `Moss` / `Krea2` / `H3-image`（原 H3 的 t2va/i2va/fl2va/l2va/ref2va
 > 五个生成模式已合并为 `H3-video` 一档）。
