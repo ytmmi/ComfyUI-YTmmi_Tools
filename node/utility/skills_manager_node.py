@@ -950,7 +950,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "当前模式：Krea 2（Krea-2 / K2）图像提示词——本清单列出 Krea 2 家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
             "不要路由到 H3 视频、Qwen-Image、Anima、MOSS-Image 或 H3-image 家族的写法。"
-            "该家族有 3 个 skills，先按需求体量选一个来读："
+            "该家族有 4 个 skills，先按需求类型选一个来读："
             "**普通画面 / 短需求扩写读 `krea2-prompt-writing`**——"
             "六层骨架（媒介与风格锚句 → 主体身份 → 服装材质 → 动作因果 → 空间机位景深 → "
             "材质分区与色盘与光位 → 画内文字），短句档 / 标准档 / 长文档三档按需求体量选；"
@@ -960,6 +960,13 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "**海报级 / 主视觉 / 编辑级长文读 `krea2-editorial-longform`**——"
             "「母题整块 + 有限替换位」（身份 / 画幅 / 服装部位 / 画内文字四类），"
             "1500–2700 词、25 段骨架、色盘百分比、五层景深。"
+            "**画面很「AI」（塑料感 / 过度干净 / 平 / 只有默认色）或用户只给了调性词"
+            "（编辑感 / 电影感 / 静谧 / 奢华 / 赛博 / 复古）时，先读 "
+            "`krea2-aesthetic-direction`**——美学五层（主方向 / 光 / 材质 / 色盘 / 质感）、"
+            "反「AI 感」十条硬规则、12 条调性配方，以及**把 Krea 2 界面的 Creativity 四档"
+            "（Raw / Low / Medium / High）、Intensity / Complexity / Movement 滑杆、"
+            "最多 4 张风格参考与情绪板翻译成文字等效写法**的对照表（工作流只有文本框时靠措辞预演）；"
+            "它只加美学层，不另立第二个画风锚句。"
             "三条硬规则：① Krea 2 读**自然语言稠密 caption**，"
             "**禁止** Danbooru tag 串、`masterpiece` / `best quality` / `score_9` / `8k`、"
             "`(tag:1.2)` 权重语法与 `@artist`——这些在自然语言编码器里只会引入噪声；"
@@ -1457,6 +1464,17 @@ class SkillsManagerNode:
         "Krea 2",
         "K2",
         "krea2 prompt",
+        "krea2 aesthetic",
+        "美学方向",
+        "art direction",
+        "调性",
+        "AI感",
+        "plastic look",
+        "creativity slider",
+        "moodboard",
+        "情绪板",
+        "风格参考",
+        "style reference",
         "自然语言提示词",
         "编辑级长文",
         "长文提示词",

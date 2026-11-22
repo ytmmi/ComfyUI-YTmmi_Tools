@@ -1,7 +1,7 @@
 ---
 name: krea2-prompt-writing
 description: Write or rewrite a Krea 2 (Krea-2 / K2) image prompt as a dense natural-language caption in the order the model was trained to read — medium and style anchor, subject and identity, wardrobe, causal action, camera and depth, materials and palette, light and its consequences, in-image typography — following the official Krea 2 rules (faithfulness first, one cohesive paragraph, no tag streams, no quality tokens, quoted text). Use when turning a short or vague idea into a paste-ready Krea 2 prompt, or when polishing an existing Krea 2 / K2 prompt that reads generic.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Krea 2 提示词写作（Krea2 Prompt Writing）
@@ -30,6 +30,8 @@ prompt。本 skill 只管「怎么写」，不管出图参数、不管 workflow�
 - 需要「短句档」与「长文档」之间的档位判断（见下文）。
 
 **不适用**：
+- 画面很「AI」（塑料感 / 过度干净 / 平 / 只有默认色）→ 先读 `krea2-aesthetic-direction`
+  （主方向 / 光 / 材质 / 色盘 / 质感五层与反「AI 感」规则），本 skill 只管把内容写成句子；
 - 要写 1500–2700 词的「母题整块 + 有限替换位」编辑级长文 → `krea2-editorial-longform`；
 - 二次元 / 动漫插画 / 画师画风 / IP 同人 → `krea2-anime-prompt`；
 - 只调构图或只调配色 → 通用 `image-composition` / `image-color-harmony`（本 skill 与它们叠加使用，
@@ -89,6 +91,10 @@ prompt。本 skill 只管「怎么写」，不管出图参数、不管 workflow�
 | ⑦ 画内文字 / 收束 | 画面上的字、最后的排除 | 文字逐字加引号；收束只写一条硬约束 | `a small sign reading "OPEN 24H" in worn vinyl lettering; no second figure` |
 
 **不要**在句首堆 10 个形容词再说是个人。主语先出现，属性跟主语走。
+
+第 ⑥ 层（材质分区 + 色盘 + 光位）是**美学决定**，不是形容词：只选一个主方向、
+光要有来源与影子落点、材质要写触感与反光行为、色盘 3–5 色且暗部有色。
+需要配方与修法时叠加 `krea2-aesthetic-direction`，不要在这里堆质量词。
 
 ## 档位：短句档 vs 长文档
 

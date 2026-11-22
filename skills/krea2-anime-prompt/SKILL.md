@@ -1,7 +1,7 @@
 ---
 name: krea2-anime-prompt
 description: Write Krea 2 anime, manga and illustration prompts in the model's own natural-language caption dialect — one dominant art direction instead of stacked studio names, reconstructed scenes instead of proper nouns, story-beat poses with visible consequences, and identity anchors that survive the framing. Use for 二次元 / 动漫 / 插画 / IP 同人 / 漫画分镜 / 角色海报 requests on Krea 2, and when the user names a character or a painterly style rather than describing a scene.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Krea 2 二次元提示词（Krea2 Anime Prompt）
@@ -19,6 +19,10 @@ Krea 2 画二次元**不是** Anima / SDXL：它读的是自然语言 caption，
 | Krea 2 + 编辑级 1500–2700 词长文 | `krea2-editorial-longform` |
 | Anima（`@画师`、score_9、tag 串、512 token 预算） | `anima-*` 家族，**不是**这里 |
 | MOSS-Image（JSON Layout、bbox 坐标） | `moss-*` 家族，**不是**这里 |
+
+**需要整套调性（光影 / 材质 / 色盘 / 胶片感）而不只是画风时**：叠加 `krea2-aesthetic-direction`。
+本 skill 负责"像不像这个角色 / 这个画风"，美学 skill 负责"这张图好不好看、脏不脏、塑料不塑料"。
+叠加时**画风锚句只有一个**（来自本 skill），美学只加光 / 材质 / 色盘 / 质感，不要再加第二个画派。
 
 **Krea 2 里写画师**：不要写 `@artist`、不要写 `by (artist:1.2)`，也不要只写一个名字指望模型认识。
 把画风**翻译成视觉属性**：媒介（赛璐珞 / 厚涂 / 水墨 / 版画）、线条（粗细、是否闭合）、

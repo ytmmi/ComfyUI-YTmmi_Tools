@@ -1,7 +1,7 @@
 ---
 name: krea2-editorial-longform
 description: Assemble a Krea 2 editor-manual long-form prompt (roughly 1500–2700 words) the way the 白垩光 / K2 editorial sets do it — one motif block that decides composition, materials, light positions and typography, plus only a few bounded replacement slots (character identity, aspect, wardrobe parts, in-image type). Use when the user wants a poster-grade key visual, a future-luxury editorial scene, or a long Krea 2 prompt with palette percentages and five-layer depth rather than a short caption.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Krea 2 编辑级长文提示词（Editorial Longform）
@@ -36,6 +36,10 @@ Krea 2 的官方样例是「一段稠密 caption」；但社区跑出了一条�
 - 用户只要一张普通图 / 头像 / 单件物品 → `krea2-prompt-writing` 的短句档或标准档；
 - 二次元 / 动漫 → `krea2-anime-prompt`；
 - 用户明确拒绝长提示词，或工作流有 token 上限 → 退回标准档，别硬写 2000 词。
+
+> 长文的第 13–19 段（材质分区 / 色盘百分比 / 三个光位）本质是**美学层**。
+> 需要配方与反「AI 感」修法时叠加 `krea2-aesthetic-direction`；
+> 那里的"一密一空""暗部要有颜色""允许一处不完美"同样适用于本 skill 的长文。
 
 ## 核心原则：宁可整块，不要随机池
 
