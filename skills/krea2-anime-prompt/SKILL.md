@@ -1,7 +1,7 @@
 ---
 name: krea2-anime-prompt
 description: Write Krea 2 anime, manga and illustration prompts in the model's own natural-language caption dialect — one dominant art direction instead of stacked studio names, reconstructed scenes instead of proper nouns, story-beat poses with visible consequences, and identity anchors that survive the framing. Use for 二次元 / 动漫 / 插画 / IP 同人 / 漫画分镜 / 角色海报 requests on Krea 2, and when the user names a character or a painterly style rather than describing a scene.
-version: 1.1.0
+version: 1.3.0
 ---
 
 # Krea 2 二次元提示词（Krea2 Anime Prompt）
@@ -15,6 +15,9 @@ Krea 2 画二次元**不是** Anima / SDXL：它读的是自然语言 caption，
 | 用户要的 | 走哪个 |
 | --- | --- |
 | Krea 2 + 二次元 / 动漫 / 插画 / 同人 | **本 skill** |
+| **画风发漂 / 要锁死某个工作室或时代的画风** | `krea2-anime-style` |
+| **同一角色多图一致 / 三视图 / 表情表** | `krea2-anime-character` |
+| **主视觉 / 海报 / 漫画分镜 / 草图转成品** | `krea2-anime-keyvisual` |
 | Krea 2 + 真人写实 / 商业摄影 / 产品 | `krea2-prompt-writing` |
 | Krea 2 + 编辑级 1500–2700 词长文 | `krea2-editorial-longform` |
 | Anima（`@画师`、score_9、tag 串、512 token 预算） | `anima-*` 家族，**不是**这里 |
@@ -23,6 +26,11 @@ Krea 2 画二次元**不是** Anima / SDXL：它读的是自然语言 caption，
 **需要整套调性（光影 / 材质 / 色盘 / 胶片感）而不只是画风时**：叠加 `krea2-aesthetic-direction`。
 本 skill 负责"像不像这个角色 / 这个画风"，美学 skill 负责"这张图好不好看、脏不脏、塑料不塑料"。
 叠加时**画风锚句只有一个**（来自本 skill），美学只加光 / 材质 / 色盘 / 质感，不要再加第二个画派。
+
+**Krea 2 被训练得最扎实的五个画风牵引**（官方 Krea 2 博客点名）：
+**Studio Ghibli、新海诚 / CoMix Wave、京都动画、Madhouse、90 年代 Sunrise**。
+用户点名其中之一时，模型确实能往那儿靠——但**仍然要写视觉指纹**（媒介 / 线条 / 上色 / 光 / 色盘），
+只写名字等于把控制权交回给随机性。五个分流的指纹表见 `krea2-anime-style` 第二节。
 
 **Krea 2 里写画师**：不要写 `@artist`、不要写 `by (artist:1.2)`，也不要只写一个名字指望模型认识。
 把画风**翻译成视觉属性**：媒介（赛璐珞 / 厚涂 / 水墨 / 版画）、线条（粗细、是否闭合）、
@@ -92,6 +100,19 @@ Krea 2 画二次元**不是** Anima / SDXL：它读的是自然语言 caption，
 | 半身 / 牛仔镜头 | 上半身服装层次、手部动作、身后环境一层 | 腿与鞋 |
 | 全身 | 服装整体轮廓、站姿与重心、脚与地面接触、影子 | 瞳孔细节（写也无效） |
 | 场景主导 | 建筑 / 地形 / 光线的三个层次 | 角色细节（人只是尺度参照） |
+
+## 社区微调模型的七段顺序（可选排布）
+
+动漫向 Krea 2 微调（如 Cat Tower）推荐的顺序与本 skill 的骨架基本一致，可作为另一种排布：
+
+```text
+主体 + 姿态动作 → 外观 / 服装 / 细节 → 道具与材质 → 构图 / 取景 / 透视
+→ 环境与背景 → 光 / 色盘 / 氛围 → 整体美学与媒介
+```
+
+同页还有一条关键经验：**动漫向微调模型的默认风格就是二次元**——不写画风反而更「标准」；
+要做出风格差异必须**显式给一句画风锚句**，否则只会得到通用的「AI 动漫感」。
+这正是画风要交给 `krea2-anime-style` 锁定的原因。
 
 ## 自检清单
 

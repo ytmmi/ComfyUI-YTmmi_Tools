@@ -950,7 +950,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "当前模式：Krea 2（Krea-2 / K2）图像提示词——本清单列出 Krea 2 家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
             "不要路由到 H3 视频、Qwen-Image、Anima、MOSS-Image 或 H3-image 家族的写法。"
-            "该家族有 4 个 skills，先按需求类型选一个来读："
+            "该家族共 7 个 skills：3 个通用 + 4 个二次元专用，先按需求类型选一个来读："
             "**普通画面 / 短需求扩写读 `krea2-prompt-writing`**——"
             "六层骨架（媒介与风格锚句 → 主体身份 → 服装材质 → 动作因果 → 空间机位景深 → "
             "材质分区与色盘与光位 → 画内文字），短句档 / 标准档 / 长文档三档按需求体量选；"
@@ -960,6 +960,16 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "**海报级 / 主视觉 / 编辑级长文读 `krea2-editorial-longform`**——"
             "「母题整块 + 有限替换位」（身份 / 画幅 / 服装部位 / 画内文字四类），"
             "1500–2700 词、25 段骨架、色盘百分比、五层景深。"
+            "**二次元 / 动漫 / 插画需求再细分四支**：写完整 caption 用 `krea2-anime-prompt`；"
+            "**画风发漂、要锁死某个工作室或时代**（官方点名被训练得最扎实的五个牵引是 "
+            "Ghibli / 新海诚 CoMix Wave / 京都动画 / Madhouse / 90 年代 Sunrise）读 "
+            "`krea2-anime-style`——四维锚句、五个流派的视觉指纹、防漂移四道锁、"
+            "混合画风的主锚+偏移写法、风格 LoRA 触发词的正确摆法；"
+            "**同一角色多图一致 / 三视图 / 表情表**读 `krea2-anime-character`——"
+            "五段式身份块（轮廓 / 发型 / 眼与标记 / 服装层次 / 识别物）与不变量 vs 可变量；"
+            "**主视觉 / 海报 / 漫画分镜 / 草图转成品**读 `krea2-anime-keyvisual`——"
+            "三层焦点与缩略图测试、预留文字带、行列式格位与阅读方向、气泡与拟声词逐字写法。"
+            "四支共用**同一句画风锚句**，不要各立一个。"
             "**画面很「AI」（塑料感 / 过度干净 / 平 / 只有默认色）或用户只给了调性词"
             "（编辑感 / 电影感 / 静谧 / 奢华 / 赛博 / 复古）时，先读 "
             "`krea2-aesthetic-direction`**——美学五层（主方向 / 光 / 材质 / 色盘 / 质感）、"
@@ -1465,6 +1475,26 @@ class SkillsManagerNode:
         "K2",
         "krea2 prompt",
         "krea2 aesthetic",
+        "krea2 anime style",
+        "二次元画风",
+        "anime style lock",
+        "画风锁定",
+        "吉卜力",
+        "ghibli",
+        "新海诚",
+        "京都动画",
+        "kyoto animation",
+        "madhouse",
+        "角色一致性",
+        "character sheet",
+        "三视图",
+        "表情表",
+        "expression sheet",
+        "漫画分镜",
+        "manga panel",
+        "主视觉",
+        "key visual",
+        "skybox",
         "美学方向",
         "art direction",
         "调性",
@@ -1479,7 +1509,6 @@ class SkillsManagerNode:
         "编辑级长文",
         "长文提示词",
         "editorial prompt",
-        "主视觉",
         "漫画",
         "海报",
         "图像通用",

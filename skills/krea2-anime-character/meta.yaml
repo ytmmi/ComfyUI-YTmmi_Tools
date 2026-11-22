@@ -1,0 +1,8 @@
+display-name-zh: Krea2 二次元角色一致性
+display-name-en: Krea 2 Anime Character Consistency
+version: 1.1.0
+tag-cn: 提示词 / 二次元 / 角色 / 一致性 / Krea2
+tag-en: Prompt / Anime / Character / Consistency / Krea2
+summary-cn: 用五段式身份块（轮廓 / 发型 / 眼与标记 / 服装层次 / 识别物）锁住同一个二次元角色，区分不变量与可变量，按行列逐格写三视图与表情表，并给出换装按部位替换、跨图三道保险与七类一致性崩坏的修法。
+summary-en: Keep one Krea 2 anime character consistent with a reusable five-part identity block (silhouette, hair grouping, eyes and mark, garment layers, signature prop), separate invariants from per-shot variables, and write turnaround or expression sheets as described row/column grids.
+source: web

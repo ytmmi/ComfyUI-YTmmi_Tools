@@ -1,0 +1,8 @@
+display-name-zh: Krea2 二次元画风锁定
+display-name-en: Krea 2 Anime Style Lock
+version: 1.1.0
+tag-cn: 提示词 / 二次元 / 画风 / Krea2
+tag-en: Prompt / Anime / Style / Krea2
+summary-cn: 把 Krea 2 二次元画风钉死：四维锚句（媒介 / 线条 / 上色 / 高光色盘）、五个强牵引流派的视觉指纹（Ghibli / 新海诚 / 京都动画 / Madhouse / 90 年代 Sunrise）、防漂移四道锁、混合画风的主锚与偏移写法，以及风格 LoRA 触发词的正确摆法。
+summary-en: Lock Krea 2 anime art direction with a four-part style anchor, the visual fingerprints of the five strongest pulls (Ghibli, Shinkai/CoMix Wave, Kyoto Animation, Madhouse, 1990s Sunrise), four anti-drift locks, a main-anchor-plus-offset recipe for hybrid styles, and correct placement of style-LoRA trigger words.
+source: web

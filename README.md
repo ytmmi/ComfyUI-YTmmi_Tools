@@ -61,6 +61,7 @@ skills 的编写方式见 [custom_skills/README.md](custom_skills/README.md)。
 - [Comfyui-K2-Editorial](https://github.com/lingdongbudong/Comfyui-K2-Editorial) — Krea2 长文提示词装配（母题整块 + 有限替换位）
 - [krea-ai/krea-2](https://github.com/krea-ai/krea-2) — Krea 2 官方提示词指南（`docs/prompting.md` / `docs/expansion.txt`）
 - [Krea 2 指南](https://www.krea.ai/docs/user-guide/features/krea-2) — Creativity 四档、Intensity / Complexity / Movement 滑杆、风格参考与情绪板
+- [Krea 2 二次元博客](https://www.krea.ai/blog/studio-anime-aesthetics-with-krea-2) — 五个最强画风牵引（Ghibli / 新海诚 / 京都动画 / Madhouse / 90 年代 Sunrise）与草图转分镜流程
 - [MiniMax-AI/MiniMax-H3-Image](https://github.com/MiniMax-AI/MiniMax-H3-Image) / [ComfyUI 教程](https://docs.comfy.org/tutorials/image/minimax/minimax-h3-image) — H3-Image 提示词规则（t2i / edit 指南、Prompting Tips）
 - [Tongyi-MAI/Z-Image](https://github.com/Tongyi-MAI/Z-Image) / [ComfyUI 教程](https://docs.comfy.org/tutorials/image/z-image/z-image) — Z-Image（造相）变体表、S3-DiT 架构与官方参数注记
 
