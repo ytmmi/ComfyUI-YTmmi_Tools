@@ -1,7 +1,9 @@
 # 保存图像
+import base64
 import json
 import os
 import re
+import zlib
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -62,24 +64,111 @@ def _pil_image_from(image: Any, keep_alpha: bool = False) -> Image.Image:
     raise TypeError(f"Unsupported image type: {type(image)!r}")
 
 
+# JPEG 的 EXIF 全部塞在单个 APP1 段里，段长字段只有 2 字节，所以整段最多 65535 字节；
+# 工作流 JSON 一旦变大就会越界，Pillow 直接抛 ValueError: EXIF data is too long。
+# 这里按「原样 → 压缩 → 丢弃 → sidecar」逐级退让，保证图片一定能写出去。
+JPEG_EXIF_MAX_BYTES = 65500  # 比 65533 的理论上限再留一点余量
+
+
+def _workflow_json_bytes(workflow_payload: dict[str, Any]) -> bytes:
+    return json.dumps(
+        workflow_payload, ensure_ascii=False, sort_keys=True
+    ).encode("utf-8")
+
+
+def _exif_size(exif: "Image.Exif") -> int:
+    """序列化后的字节数；序列化失败返回 -1，调用方据此继续退让。"""
+    try:
+        return len(exif.tobytes())
+    except Exception:
+        return -1
+
+
+def _build_full_exif(prompt_json: str) -> "Image.Exif":
+    """第一档：与旧行为一致，工作流明文写进 Model / UserComment。"""
+    exif = Image.Exif()
+    exif[0x0110] = f"prompt:{prompt_json}"          # EXIF Model tag
+    exif[0x9286] = prompt_json.encode("utf-8")      # EXIF UserComment tag
+    return exif
+
+
+def _build_compressed_exif(workflow_payload: dict[str, Any]) -> "Image.Exif":
+    """第二档：zlib + base64，仍然能完整还原工作流，但体积通常只剩几分之一。"""
+    packed = base64.b64encode(
+        zlib.compress(_workflow_json_bytes(workflow_payload), 9)
+    )
+    exif = Image.Exif()
+    exif[0x010E] = "workflow:zlib+base64"           # ImageDescription，标注编码方式
+    exif[0x010F] = "ComfyUI"                        # Make
+    exif[0x0110] = "ComfyUI-YTmmi_Tools"            # Model
+    exif[0x9286] = b"ASCII\0\0\0" + packed        # UserComment：charset 前缀 + 载荷
+    return exif
+
+
+def _write_workflow_sidecar(
+    output_path: Path, workflow_payload: dict[str, Any]
+) -> Optional[Path]:
+    """第三档兜底：把工作流落到同名 sidecar，不让元数据真的消失。"""
+    sidecar = output_path.with_suffix(".workflow.json")
+    try:
+        sidecar.write_text(
+            json.dumps(workflow_payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception as exc:  # 只影响元数据，不影响图片
+        print(f"[保存图像] 工作流 sidecar 写入失败：{exc}")
+        return None
+    return sidecar
+
+
 def save_jpeg_image(
     image: Any,
     output_path: Union[str, os.PathLike[str]],
     workflow_data: Optional[dict[str, Any]] = None,
     quality: int = 95,
 ) -> str:
-    """直接把图片保存成 JPEG，并把工作流元数据写入 EXIF。"""
+    """直接把图片保存成 JPEG，并把工作流元数据写入 EXIF（超长时逐级退让）。"""
     workflow_payload = _normalize_workflow_payload(workflow_data)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     pil_image = _pil_image_from(image, keep_alpha=False).convert("RGB")
 
-    exif = Image.Exif()
     prompt_json = json.dumps(workflow_payload, ensure_ascii=False, sort_keys=True)
-    exif[0x0110] = f"prompt:{prompt_json}"          # EXIF Model tag
-    exif[0x9286] = prompt_json.encode("utf-8")      # EXIF UserComment tag
-    pil_image.save(output_path, format="JPEG", quality=quality, exif=exif)
+    raw_bytes = len(prompt_json.encode("utf-8"))
+    exif: Optional["Image.Exif"] = None
+
+    # 第一档：原样写入。明显超长时直接跳过，省得白序列化一份几 MB 的 EXIF。
+    if raw_bytes * 2 + 64 <= JPEG_EXIF_MAX_BYTES:
+        candidate = _build_full_exif(prompt_json)
+        size = _exif_size(candidate)
+        if 0 < size <= JPEG_EXIF_MAX_BYTES:
+            exif = candidate
+        else:
+            print(f"[保存图像] EXIF 原样写法 {size} 字节，超过上限 {JPEG_EXIF_MAX_BYTES}，改走压缩")
+    else:
+        print(f"[保存图像] 工作流 {raw_bytes} 字节，预计超出 JPEG EXIF 上限，改走压缩")
+
+    # 第二档：压缩后再写，仍放得下就不丢任何信息。
+    if exif is None:
+        candidate = _build_compressed_exif(workflow_payload)
+        size = _exif_size(candidate)
+        if 0 < size <= JPEG_EXIF_MAX_BYTES:
+            exif = candidate
+            print(f"[保存图像] 工作流已压缩写入 EXIF（{size} 字节）")
+        else:
+            print(f"[保存图像] EXIF 压缩写法 {size} 字节，仍超过上限 {JPEG_EXIF_MAX_BYTES}，丢弃元数据")
+
+    # 第三档：EXIF 放不下就丢掉，并把工作流落到 sidecar，图片照常保存。
+    if exif is None:
+        sidecar = _write_workflow_sidecar(output_path, workflow_payload)
+        if sidecar is not None:
+            print(f"[保存图像] 工作流改为 sidecar：{sidecar}")
+
+    if exif is not None:
+        pil_image.save(output_path, format="JPEG", quality=quality, exif=exif)
+    else:
+        pil_image.save(output_path, format="JPEG", quality=quality)
     return str(output_path)
 
 
