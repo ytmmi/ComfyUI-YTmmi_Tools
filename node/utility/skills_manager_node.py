@@ -28,7 +28,9 @@ skills 目录约定（与上游 ComfyUI_Qwen_H3_Prompt 保持一致）：
 - Krea2：Krea 2（Krea-2 / K2，单流 DiT + 自然语言 caption）图像提示词家族，
   清单只列 id 以 krea2 开头的 skills（基础写作 / 二次元 / 编辑级长文三支）；
 - H3-image：MiniMax-H3-Image（33.1B DiT，6 步无 CFG，无负面词，约 16 MP）图像家族，
-  清单只列 id 以 h3-image 开头的 skills（文生图 / 参考图编辑两支）。
+  清单只列 id 以 h3-image 开头的 skills（文生图 / 参考图编辑两支）；
+- Z-image：Z-Image（造相，通义 6B S3-DiT）图像家族，清单只列 id 以 z-image 开头的
+  skills（基础写作 / 双语文字版式两支）。Turbo 8 步无 CFG、Base 30–50 步 CFG 3–5。
 
 输出：
 - skills：所选 skills 的完整指导文本（含参考资料），可直接接入自定义LLM的 skills 接口；
@@ -78,7 +80,8 @@ DEFAULT_SKILL_ID = "h3-prompt-writing"
 # - Anima：Anima 二次元插画任务家族（12 个 anima-* skills）；
 # - Moss：MOSS-Image 图像提示词增强家族（默认交付 JSON Layout：全局描述 + 局部方框）；
 # - Krea2：Krea 2 自然语言 caption 家族（基础写作 / 二次元 / 编辑级长文）；
-# - H3-image：MiniMax-H3-Image 图像家族（文生图 / 参考图编辑）。
+# - H3-image：MiniMax-H3-Image 图像家族（文生图 / 参考图编辑）；
+# - Z-image：Z-Image（造相，通义 6B S3-DiT）图像家族（基础写作 / 双语文字版式）。
 #
 # 另外，id 以 image- 开头的「图像通用 skills」（构图 / 配色等与模型无关的图像工艺）
 # **在所有模式下都会并入自动清单**（见 filter_registry_for_mode）。
@@ -93,6 +96,7 @@ MODE_ANIMA = "Anima"
 MODE_MOSS = "Moss"
 MODE_KREA2 = "Krea2"
 MODE_H3_IMAGE = "H3-image"
+MODE_Z_IMAGE = "Z-image"
 MODE_OPTIONS = (
     MODE_AUTO,
     MODE_H3_VIDEO,
@@ -102,6 +106,7 @@ MODE_OPTIONS = (
     MODE_MOSS,
     MODE_KREA2,
     MODE_H3_IMAGE,
+    MODE_Z_IMAGE,
 )
 
 # H3 家族的「合并档」：旧的五个生成模式（t2va/i2va/fl2va/l2va/ref2va）在
@@ -130,6 +135,11 @@ KREA2_SKILL_MARKERS = ("krea2",)
 # 注意：必须排在 H3 视频判定**之前**——h3-image-* 也以 h3 开头，先判 image 才不会
 # 被当成 H3-video 家族。
 H3_IMAGE_SKILL_MARKERS = ("h3-image",)
+
+# Z-Image（造相，阿里通义 6B S3-DiT）图像类 skills 的 id 前缀
+# （z-image-prompt-writing / z-image-bilingual-text），与 normalize_mode 的
+# z-image 归并保持一致。
+Z_IMAGE_SKILL_MARKERS = ("z-image",)
 
 # 「图像通用」skills 的 id 前缀（image-composition / image-color-harmony 等）。
 # 这类 skills 承载与具体模型无关的图像工艺（构图、配色等），因此在**所有模式**下
@@ -642,6 +652,21 @@ def is_h3_image_skill(skill_id) -> bool:
     )
 
 
+def is_z_image_skill(skill_id) -> bool:
+    """判断某个 skills 是否属于 Z-Image（造相）图像家族（id 以 z-image 开头）。
+
+    与 normalize_mode 的 z-image 归并保持一致：`Z-image` 模式只列这一家族；
+    其他模式（H3-video / H3-image / qwen-image-* / Anima / moss / Krea2）排除这一家族。
+    """
+    value = str(skill_id or "").strip().casefold()
+    if not value:
+        return False
+    return any(
+        value == marker or value.startswith(f"{marker}-") or f"-{marker}-" in value
+        for marker in Z_IMAGE_SKILL_MARKERS
+    )
+
+
 def is_general_skill(skill_id) -> bool:
     """判断某个 skills 是否属于「图像通用」家族（id 以 image- 开头）。
 
@@ -669,6 +694,8 @@ def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> st
        （它们产出单一交付物：提示词正文 / 配色方案）；
     3b. Krea 2 家族 skills（id 以 `krea2-` 开头）→ OUTPUT_ONLY_NOTE
        （该家族无论短句档、二次元还是编辑级长文，交付物都是**可直接粘贴的 caption 正文**）；
+    3c. Z-Image 家族 skills（id 以 `z-image-` 开头）→ OUTPUT_ONLY_NOTE
+       （基础写作与双语版式两支的交付物都是可直接粘贴的提示词正文）；
     4. 产出单一交付物的 skills（id 含 `prompt`，含散文与 JSON 两类）→ OUTPUT_ONLY_NOTE；
     5. 「自动」→ OUTPUT_ONLY_NOTE（不预设具体 skills，用同一套通用强调）；
     6. 其余风格类 skills → 空（它们会输出分镜/制作方案，强加会误导模型）。
@@ -702,6 +729,10 @@ def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> st
 
     # 3b. Krea 2 家族（krea2-*）：交付物恒为可直接粘贴的 caption 正文
     if is_krea2_skill(value):
+        return OUTPUT_ONLY_NOTE
+
+    # 3c. Z-Image 家族（z-image-*）：基础写作与双语版式都是单一交付物
+    if is_z_image_skill(value):
         return OUTPUT_ONLY_NOTE
 
     if not found:
@@ -746,6 +777,11 @@ def normalize_mode(mode: str) -> str:
         return MODE_MOSS
     if value == MODE_KREA2.casefold() or value.startswith(f"{MODE_KREA2.casefold()}-"):
         return MODE_KREA2
+    # Z-image 图像家族（造相）：放在 H3 判定之前，避免与 h3-* 前缀混淆
+    if value in (MODE_Z_IMAGE.casefold(), "z-image", "zimage", "z_image"):
+        return MODE_Z_IMAGE
+    if value.startswith(f"{MODE_Z_IMAGE.casefold()}-"):
+        return MODE_Z_IMAGE
     # H3-image 图像家族：必须先于 H3-video 判定，否则 h3-image-* 会被吞进视频家族
     if value in (MODE_H3_IMAGE.casefold(), "h3-image", "h3image"):
         return MODE_H3_IMAGE
@@ -785,6 +821,11 @@ def is_h3_image_mode(mode: str) -> bool:
     return normalize_mode(mode) == MODE_H3_IMAGE
 
 
+def is_z_image_mode(mode: str) -> bool:
+    """判断模式是否属于 Z-Image（造相）图像任务家族。"""
+    return normalize_mode(mode) == MODE_Z_IMAGE
+
+
 def is_h3_mode(mode: str) -> bool:
     """判断模式是否属于 H3 视频任务家族（合并档 H3-video，兼容旧生成模式写法）。"""
     return normalize_mode(mode) == MODE_H3_VIDEO
@@ -804,8 +845,9 @@ def filter_registry_for_mode(registry, mode: str):
     - Moss：MOSS-Image 家族（id 以 moss 开头的 skills）+ 全部通用 skills；
     - Krea2：Krea 2 家族（id 以 krea2 开头的 skills）+ 全部通用 skills；
     - H3-image：MiniMax-H3-Image 家族（id 以 h3-image 开头的 skills）+ 全部通用 skills；
+    - Z-image：Z-Image（造相）家族（id 以 z-image 开头的 skills）+ 全部通用 skills；
     - H3-video：H3 视频家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image、Anima、
-      MOSS、Krea2 与 H3-image）+ 全部通用 skills；
+      MOSS、Krea2、H3-image 与 Z-image）+ 全部通用 skills；
     - Auto：不筛选，返回全部（通用 skills 自然在内）。
     """
     normalized = normalize_mode(mode)
@@ -825,14 +867,18 @@ def filter_registry_for_mode(registry, mode: str):
             return is_krea2_skill(spec.id)
         if is_h3_image_mode(normalized):
             return is_h3_image_skill(spec.id)
+        if is_z_image_mode(normalized):
+            return is_z_image_skill(spec.id)
         if is_h3_mode(normalized):
-            # H3 视频家族：排除 Qwen-Image、Anima、MOSS、Krea2 与 H3-image 五个图像家族
+            # H3 视频家族：排除 Qwen-Image、Anima、MOSS、Krea2、H3-image 与
+            # Z-image 六个图像家族
             return (
                 not any(m in spec.id.casefold() for m in QWEN_IMAGE_MARKERS)
                 and not is_anima_skill(spec.id)
                 and not is_moss_skill(spec.id)
                 and not is_krea2_skill(spec.id)
                 and not is_h3_image_skill(spec.id)
+                and not is_z_image_skill(spec.id)
             )
         return True
 
@@ -851,7 +897,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         return (
             "当前模式：Anima（二次元插画）——本清单列出 Anima 家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
-            "不要路由到 H3 视频、Qwen-Image、MOSS-Image、Krea2 或 H3-image 家族的写法。"
+            "不要路由到 H3 视频、Qwen-Image、MOSS-Image、Krea2、H3-image 或 Z-image 家族的写法。"
             "动手前请**先读取共同基准** `anima-prompt-format/references/anima-prompt-baseline.md`"
             "（其中的「高杠杆规则」是全家族通用硬规则：主画师必选、权重用大数且加权标签总数 ≤4、"
             "取景对抗自然语言漂移、Hybrid 三层混合、动作与天气要有可见后果），"
@@ -873,7 +919,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         return (
             "当前模式：MOSS-Image 图像提示词增强——本清单列出 MOSS-Image 家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
-            "不要路由到 H3 视频、Qwen-Image、Anima、Krea2 或 H3-image 家族的写法。"
+            "不要路由到 H3 视频、Qwen-Image、Anima、Krea2、H3-image 或 Z-image 家族的写法。"
             "该家族现在有 2 个 skills，先按需求类型选一个来读："
             "**动画 / 二次元风格需求优先读 `moss-anime-prompt-template`**——"
             "二次元人物、IP 同人、场景插画、多人互动、海报、漫画等动画风格需求走这一支，"
@@ -931,7 +977,38 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         return (
             "当前模式：Qwen-Image 提示词改写——本清单列出该家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
-            "不要路由到 H3 视频、Anima、MOSS-Image、Krea2 或 H3-image 家族的写法。"
+            "不要路由到 H3 视频、Anima、MOSS-Image、Krea2、H3-image 或 Z-image 家族的写法。"
+            + GENERAL_SKILL_HINT
+        )
+    if is_z_image_mode(normalized):
+        return (
+            "当前模式：Z-Image（造相，阿里通义 6B S3-DiT）——本清单列出 Z-image 家族的 skills"
+            "（另含 image-* 图像通用 skills），请在这两类里选择；"
+            "不要路由到 H3 视频、H3-Image、Qwen-Image、Anima、MOSS-Image 或 Krea2 家族的写法。"
+            "该家族有 2 个 skills："
+            "**普通画面 / 写实 / 风格化需求读 `z-image-prompt-writing`**——"
+            "六段骨架（媒介 → 主体身份 → 动作因果 → 空间机位 → 光与材质 → 文字与收束），"
+            "并**先判断变体**；"
+            "**文字是主体（海报 / 招牌 / 包装 / 书封 / 菜单 / 标签 / 中英双语版式）读 "
+            "`z-image-bilingual-text`**——五要素文字层（内容 · 位置 · 层级 · 字体气质 · 材质）、"
+            "中英各自成行的混排三分行规则与版式骨架。"
+            "三条硬规则：① **先分变体再写提示词**——Z-Image-Turbo 是 8 步蒸馏版、"
+            "**没有 CFG，负面提示词不生效**；Z-Image（Base）/ Omni-Base / Edit 有 CFG"
+            "（官方参考 30–50 步、CFG 3–5），负面词有效，但官方明确它**对负面词敏感**，"
+            "所以负面词要短而准，堆长串会削画面；"
+            "② **自然语言顺序语义**：S3-DiT 把文本与图像 token 在序列级拼接，"
+            "提示词按自然语言顺序被整体理解，**禁止** Danbooru tag 串、"
+            "`masterpiece` / `best quality` / `8k` 与 `(tag:1.2)` 权重语法；"
+            "③ **画面文字逐字加引号**并给位置 / 层级 / 字体气质 / 材质；"
+            "文字是主体时控制字数（中文 2–6 字、英文 1–3 词最稳），"
+            "不需要文字就明说「画面中没有文字」。"
+            "Z-Image 的文本编码器是 Qwen3-4B，**中英双语**都支持，"
+            "所以画面内中文可以直接写中文；但描述正文用英文更稳。"
+            "步数 / CFG / 分辨率属于工作流参数，**不要写进提示词**。"
+            "写之前如需官方原文规则与变体表，先读 "
+            "`z-image-prompt-writing/references/z-image-official-guidelines.md`；"
+            "构图 / 配色叠加 image-* 通用 skills 即可。"
+            "该家族只产出文本，不生成图片、不调用外部 API。"
             + GENERAL_SKILL_HINT
         )
     if is_h3_image_mode(normalized):
@@ -939,7 +1016,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "当前模式：MiniMax-H3-Image（开源权重图像模型：33.1B DiT，蒸馏 6 步、"
             "guidance 固定 1，原生约 16 MP）——本清单列出 H3-image 家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
-            "不要路由到 H3 视频、Qwen-Image、Anima、MOSS-Image 或 Krea2 家族的写法。"
+            "不要路由到 H3 视频、Qwen-Image、Anima、MOSS-Image、Krea2 或 Z-image 家族的写法。"
             "该家族有 2 个 skills，先按有没有参考图选一个来读："
             "**纯文生图（海报 / 信息图 / 图表 / 仪表盘 / 产品图 / UI / 场景 / 分镜 / 宫格）"
             "读 `h3-image-prompt-writing`**——官方四层顺序：任务与交付物 → 版式与阅读顺序 → "
@@ -965,8 +1042,8 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
     if is_h3_mode(normalized):
         return (
             "当前模式：MiniMax H3 视频（合并档，已含原 t2va / i2va / fl2va / l2va / ref2va "
-            "五种生成写法）——本清单已排除 Qwen-Image、Anima、MOSS-Image、Krea2 与"
-            "H3-image 图像提示词家族的 skills（image-* 图像通用 skills 仍保留）；"
+            "五种生成写法）——本清单已排除 Qwen-Image、Anima、MOSS-Image、Krea2、"
+            "H3-image 与 Z-image 图像提示词家族的 skills（image-* 图像通用 skills 仍保留）；"
             "h3-prompt-writing 的**基础指南与全参考指南两份都已提供**，"
             "按用户实际要做的任务取用：纯文生视频用基础指南，带参考素材用全参考指南；"
             "图像提示词需求请改用对应的图像家族模式；"
@@ -1243,7 +1320,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 Auto / H3-video / Qwen-image-t2i / Qwen-image-edit / Anima / Moss / Krea2 / H3-image（非 Auto 时按任务家族筛选自动清单；H3-video 为原 t2va/i2va/fl2va/l2va/ref2va 五档合并）；image-* 图像通用 skills（构图 / 配色等模型无关工艺）在所有模式下都会并入清单'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 Auto / H3-video / Qwen-image-t2i / Qwen-image-edit / Anima / Moss / Krea2 / H3-image / Z-image（非 Auto 时按任务家族筛选自动清单；H3-video 为原 t2va/i2va/fl2va/l2va/ref2va 五档合并）；image-* 图像通用 skills（构图 / 配色等模型无关工艺）在所有模式下都会并入清单'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1281,6 +1358,8 @@ class SkillsManagerNode:
                         "（列出 anima-* 的 12 个 skills）；"
                         "Moss：MOSS-Image 图像提示词增强家族"
                         "（列出 moss-* 的 skills，默认交付 JSON Layout：全局描述 + 局部方框）；"
+                        "Z-image：Z-Image（造相，通义 6B S3-DiT）图像家族"
+                        "（列出 z-image-* 的 skills；Turbo 8 步无 CFG 不写负面词，Base 30–50 步 CFG 3–5 负面词才生效）；"
                         "H3-image：MiniMax-H3-Image 图像家族"
                         "（列出 h3-image-* 的 skills：文生图 / 参考图编辑，6 步无 CFG、无负面词、约 16 MP）；"
                         "Krea2：Krea 2（Krea-2 / K2）自然语言 caption 家族"
@@ -1350,6 +1429,16 @@ class SkillsManagerNode:
         "二次元提示词模板",
         "anime prompt",
         "moss anime",
+        "z image",
+        "Z-Image",
+        "z-image",
+        "造相",
+        "zimage",
+        "通义图像",
+        "双语文字",
+        "文字版式",
+        "bilingual text",
+        "typography",
         "h3 image",
         "H3-Image",
         "h3-image",
@@ -1462,11 +1551,13 @@ __all__ = [
     "MODE_MOSS",
     "MODE_KREA2",
     "MODE_H3_IMAGE",
+    "MODE_Z_IMAGE",
     "QWEN_IMAGE_MARKERS",
     "ANIMA_SKILL_MARKERS",
     "MOSS_SKILL_MARKERS",
     "KREA2_SKILL_MARKERS",
     "H3_IMAGE_SKILL_MARKERS",
+    "Z_IMAGE_SKILL_MARKERS",
     "GENERAL_SKILL_MARKERS",
     "GENERAL_SKILL_HINT",
     "MODE_SKILL_ALLOWLIST",
@@ -1476,6 +1567,7 @@ __all__ = [
     "is_moss_mode",
     "is_krea2_mode",
     "is_h3_image_mode",
+    "is_z_image_mode",
     "is_h3_mode",
     "filter_registry_for_mode",
     "mode_family_hint",
@@ -1488,6 +1580,7 @@ __all__ = [
     "is_moss_skill",
     "is_krea2_skill",
     "is_h3_image_skill",
+    "is_z_image_skill",
     "is_general_skill",
     "default_extra_note",
     "MAX_CHARS_DEFAULT",

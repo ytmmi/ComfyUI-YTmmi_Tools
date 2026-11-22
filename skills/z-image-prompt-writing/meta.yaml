@@ -1,0 +1,8 @@
+display-name-zh: Z-Image 提示词写作
+display-name-en: Z-Image Prompt Writing
+version: 1.0.0
+tag-cn: 提示词 / 图像 / Z-Image
+tag-en: Prompt / Image / Z-Image
+summary-cn: 按 Z-Image（通义 6B S3-DiT）四变体差异写自然语言提示词：Turbo 8 步无 CFG 不写负面词、Base 30–50 步 CFG 3–5 且负面词要短，配合写实质感、中英文字渲染与推理型需求，并在交付前过自检清单。
+summary-en: Write Z-Image (Tongyi 6B S3-DiT) prompts in natural language with the right variant — Turbo's 8-step no-CFG path versus Base's CFG 3–5 path where short negative prompts work — plus photoreal detail, bilingual text and reasoning-style briefs.
+source: web

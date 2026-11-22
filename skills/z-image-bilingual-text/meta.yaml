@@ -1,0 +1,8 @@
+display-name-zh: Z-Image 双语文字版式
+display-name-en: Z-Image Bilingual Text
+version: 1.0.0
+tag-cn: 提示词 / 文字 / 版式 / Z-Image
+tag-en: Prompt / Typography / Z-Image
+summary-cn: 用 Z-Image 的双语文字渲染能力写以文字为主体的提示词（海报 / 招牌 / 包装 / 书封 / 菜单 / 标签）：五要素文字层（内容·位置·层级·字体气质·材质）、中英混排三分行规则、版式骨架与字数纪律，并附失败修法与自检清单。
+summary-en: Compose Z-Image prompts where the lettering is the subject — posters, signage, packaging, covers and bilingual layouts — with a five-part text layer, Chinese/English separation rules, a layout skeleton, and fixes for garbled or missing characters.
+source: web
