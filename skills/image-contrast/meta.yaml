@@ -1,0 +1,8 @@
+display-name-zh: 对比
+display-name-en: Image Contrast
+version: 1.0.0
+tag-cn: 提示词 / 对比 / 视觉重音
+tag-en: Prompt / Contrast / Visual Hierarchy
+summary-cn: 用八个对比维度（明暗 / 色彩 / 冷暖 / 大小 / 质感 / 虚实 / 密度 / 数量）给画面建立唯一主对比与明确归属，并强调「一半加法一半减法」的抑制项，附常见失败修法。
+summary-en: Build one deliberate main contrast across eight dimensions - value, colour, warm-cool, size, texture, sharpness, density, count - with an explicit suppression half, so the eye lands where you intend.
+source: web

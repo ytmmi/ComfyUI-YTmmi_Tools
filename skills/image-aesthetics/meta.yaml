@@ -1,0 +1,8 @@
+display-name-zh: 通用美学（入口）
+display-name-en: Image Aesthetics (Entry)
+version: 1.0.0
+tag-cn: 提示词 / 美学 / 通用
+tag-en: Prompt / Aesthetics / General
+summary-cn: 通用美学的入口与路由：七层（构图 / 对比 / 光影明度 / 空间虚实 / 色彩理论 / 主题叙事 / 情感意境）各决定什么、按什么顺序修、症状对应哪一层，并给出「每层只出一个决定、下层服从上层、矛盾时砍新加的」叠加纪律。
+summary-en: Entry point for the model-agnostic aesthetics layer - seven layers, what each decides, the order to fix them, a symptom-to-layer table, and the stacking discipline that keeps the layers from contradicting each other.
+source: web

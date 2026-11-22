@@ -1,7 +1,7 @@
 ---
 name: image-color-harmony
 description: Design and enforce one coherent colour scheme in any diffusion-model image prompt — hue relationships (monochrome, analogous, complementary, split-complementary, triadic), warm/cool structure, value and saturation balance, subject-versus-background colour separation, the colour of the light, shadow environment colour and atmospheric perspective. Use when a render comes out muddy, clashing, washed out, all one note or "cheap looking", when a poster or key visual needs a deliberate palette, or when the user asks for a mood colour such as pastel, neon, sepia, duotone or teal-and-orange.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # 图像配色（Image Color Harmony）
@@ -13,6 +13,10 @@ version: 1.1.0
 本 skill 只管**颜色**这一层：色相关系、明度 / 饱和度结构、主体与背景的分色、
 **暗部的环境色与大气透视**、光的颜色、色彩分级。
 不碰画风媒介、不碰构图与镜头、不碰负面词体系。
+
+**兄弟层**：光与明度 → `image-light-and-value`（暗部颜色的物理来源）；对比 → `image-contrast`；
+空间与虚实 → `image-space-and-depth`（大气透视会改远处颜色）；情绪配方 → `image-mood-and-atmosphere`；
+不知道先调哪层 → 入口 `image-aesthetics`。
 
 **用法：把下文的英文词汇嵌入你所用模型的提示词（作为 tag 或自然语言均可），具体语法随模型而定。**
 词表、七套配色骨架、情绪 → 配色对照表、暗部环境色 / 大气透视 / 双色调调色写法与失败修法见

@@ -1,0 +1,8 @@
+display-name-zh: 情感与意境
+display-name-en: Image Mood & Atmosphere
+version: 1.0.0
+tag-cn: 提示词 / 情绪 / 氛围
+tag-en: Prompt / Mood / Atmosphere
+summary-cn: 用五个条件（色温 / 空气介质 / 明度键 / 节奏 / 距离）把「感觉」写成可执行描述，给出 low·mid·high 三档明度键、七种情绪配方、空气介质的写法纪律，以及最容易被忘的反面参照。
+summary-en: Carry mood with five conditions - colour temperature, ambient medium, value key, pace and distance - plus low/mid/high value keys, seven mood recipes, and the anti-reference half most prompts forget.
+source: web

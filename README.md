@@ -56,6 +56,7 @@ skills 的编写方式见 [custom_skills/README.md](custom_skills/README.md)。
 - [ComfyUI_Qwen_H3_Prompt](https://github.com/chflame163/ComfyUI_Qwen_H3_Prompt) — skills 管理方式
 - [MiniMax-AI/MiniMax-H3](https://github.com/MiniMax-AI/MiniMax-H3) — 内置 H3 skills
 - [Anima 模型卡](https://huggingface.co/circlestone-labs/Anima) / [ComfyUI 官方教程](https://docs.comfy.org/tutorials/image/anima/anima) — Anima skills 依据
+- 通用美学七层依据：[StudioBinder 布光术语](https://www.studiobinder.com/blog/film-lighting-terms/)（Key/Fill/Rim/Rembrandt/Split/Loop/Butterfly、High-Low Key）、[Proko 明度组织](https://www.proko.com/course-lesson/how-to-organize-values-composition)、David duChemin《Find the Contrast, Find the Interest》、Magnum《Telling Stories: the Single Image vs. the Series》、mood.md 协议（Owl-Listener/perceptual-protocols）
 - [moss-image-prompt-enhancer](skills/moss-image-prompt-enhancer/SKILL.md) — MOSS-Image 提示词增强 skills
 - [moss-anime-prompt-template](skills/moss-anime-prompt-template/SKILL.md) — MOSS 二次元提示词模板（sfw 版）
 - [OpenMOSS/MOSS-Image USERGUIDE](https://github.com/OpenMOSS/MOSS-Image) — MOSS-Image 官方参数与提示词规范

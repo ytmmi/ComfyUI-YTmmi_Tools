@@ -1,0 +1,8 @@
+display-name-zh: 空间与虚实
+display-name-en: Image Space & Depth
+version: 1.0.0
+tag-cn: 提示词 / 空间 / 景深 / 虚实
+tag-en: Prompt / Space / Depth of Field
+summary-cn: 用五层深度（压边前景 / 主体 / 中景 / 远景 / 空气）与六个纵深手段（遮挡、尺度递减、大气透视、虚实差、光的分层、引导线）把平面画面做出空间，并给出尺度参照、焦点先定的虚实写法与六类「平」的修法。
+summary-en: Give an image real depth with five separable depth bands and six depth cues - overlap, scale recession, aerial perspective, sharp/soft separation, light layering and leading lines - plus scale references and fixes for flat renders.
+source: web

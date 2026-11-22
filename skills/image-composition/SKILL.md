@@ -1,7 +1,7 @@
 ---
 name: image-composition
 description: Fix and design framing in image-generation prompts with shot size, camera angle, view direction, subject placement, visual hierarchy, depth layering, negative space and special lenses. Use when a render puts the subject too small, centers everything, lets characters overlap without hierarchy or lets the background steal focus, and when a portrait, full-body character, poster or key visual, group shot or scenery-led image needs its framing rebuilt from prompt text alone. Model-agnostic: the same composition words work as tags or as natural language in any diffusion model.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # 图像构图（Image Composition）
@@ -30,7 +30,9 @@ version: 1.1.0
 - 已经写了构图词但看起来没生效（景别被环境描述拽远）；
 - 为**头像 / 立绘 / 海报 KV / 群像 / 场景主导**图重建取景基线。
 
-**不适用**：只调颜色 → 配色类 skill；只调画风 / 媒介 / 线条 → 风格类 skill；
+**不适用**：只调颜色 → `image-color-harmony`；只调光与明暗 → `image-light-and-value`；
+只调层次与虚实 → `image-space-and-depth`；只调主次重音 → `image-contrast`；
+说不清该调哪层 → 先读入口 `image-aesthetics`；只调画风 / 媒介 / 线条 → 风格类 skill；
 只调动作方向与动态线 → 动作类 skill；角色身份一致性 → 角色类 skill。
 
 ## 输出契约

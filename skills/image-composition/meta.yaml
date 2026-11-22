@@ -1,6 +1,6 @@
 display-name-zh: 图像构图
 display-name-en: Image Composition
-version: 1.0.0
+version: 1.2.0
 tag-cn: 提示词 / 构图 / 镜头
 tag-en: Prompt / Composition / Camera
 summary-cn: 用景别、机位、朝向、主体位置、景深分层、负空间与特殊镜头词汇重建任意扩散模型提示词的画面结构，并给出常见构图失败的提示词级修法。

@@ -1,0 +1,8 @@
+display-name-zh: 光影与明度
+display-name-en: Image Light & Value
+version: 1.0.0
+tag-cn: 提示词 / 光影 / 明度
+tag-en: Prompt / Lighting / Value
+summary-cn: 用「光源 / 软硬 / 颜色 / 照亮面 / 影子落点」五问写清光，用亮部·中间调·暗部三档定明度结构，并给出八种光位速查、主体高反差环境低反差的视线引导法与七类打光失败的修法。
+summary-en: Design light and value in an image prompt - the five questions every light must answer, a three-tier value structure, eight named light setups, contrast as an eye-guide, and fixes for flat, grey or directionless renders.
+source: web
