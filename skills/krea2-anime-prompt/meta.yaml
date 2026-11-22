@@ -1,0 +1,8 @@
+display-name-zh: Krea2 二次元提示词
+display-name-en: Krea 2 Anime Prompt
+version: 1.0.0
+tag-cn: 提示词 / 二次元 / Krea2
+tag-en: Prompt / Anime / Krea2
+summary-cn: 用 Krea 2 的自然语言 caption 方言写二次元 / 动漫 / 插画提示词：单一主画风锚句、场景重构而非命名、带可见后果的动作节点、能在当前景别看见的角色身份锚点，并附取景对照与自检清单。
+summary-en: Write Krea 2 anime and illustration prompts in the model's caption dialect — one dominant art direction, reconstructed scenes instead of proper nouns, story-beat poses with visible consequences, and framing-aware identity anchors.
+source: web

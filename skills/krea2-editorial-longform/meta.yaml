@@ -1,0 +1,8 @@
+display-name-zh: Krea2 编辑级长文提示词
+display-name-en: Krea 2 Editorial Longform
+version: 1.0.0
+tag-cn: 提示词 / 长文 / 编辑级 / Krea2
+tag-en: Prompt / Longform / Editorial / Krea2
+summary-cn: 按「母题整块 + 有限替换位」的方式装配 Krea 2 编辑级长文提示词（1500–2700 词、25 段骨架、材质分区、色盘百分比、五层景深、排版语言），替换位只保留角色身份 / 画幅 / 服装部位 / 画内文字四类。
+summary-en: Assemble a Krea 2 editor-manual long-form prompt (1500–2700 words) as one motif block plus four bounded replacement slots — identity, aspect, wardrobe parts and in-image type — with a 25-section skeleton, material splits, palette percentages and five-layer depth.
+source: web

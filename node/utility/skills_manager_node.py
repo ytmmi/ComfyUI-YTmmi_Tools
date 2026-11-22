@@ -23,7 +23,9 @@ skills 目录约定（与上游 ComfyUI_Qwen_H3_Prompt 保持一致）：
 - Anima：Anima（CircleStone Labs × Comfy Org）二次元插画提示词家族，
   清单只列 id 以 anima 开头的 skills（12 个 Anima skills 同属该家族）；
 - moss：MOSS-Image 图像提示词增强家族（moss-image-prompt-enhancer：
-  caption / 像素级 Layout 两种交付物 + 本地编译脚本，不生成图片）。
+  caption / 像素级 Layout 两种交付物 + 本地编译脚本，不生成图片）；
+- Krea2：Krea 2（Krea-2 / K2，单流 DiT + 自然语言 caption）图像提示词家族，
+  清单只列 id 以 krea2 开头的 skills（基础写作 / 二次元 / 编辑级长文三支）。
 
 输出：
 - skills：所选 skills 的完整指导文本（含参考资料），可直接接入自定义LLM的 skills 接口；
@@ -67,7 +69,8 @@ DEFAULT_SKILL_ID = "h3-prompt-writing"
 #   且按具体生成模式只提供对应的一份指南（ref2va 用全参考，其余用基础）；
 # - qwen-image-*：Qwen-Image 2.1 图像提示词改写家族（文生图 / 图像编辑）；
 # - Anima：Anima 二次元插画任务家族（12 个 anima-* skills）；
-# - moss：MOSS-Image 图像提示词增强家族（默认交付 JSON Layout：全局描述 + 局部方框）。
+# - moss：MOSS-Image 图像提示词增强家族（默认交付 JSON Layout：全局描述 + 局部方框）；
+# - Krea2：Krea 2 自然语言 caption 家族（基础写作 / 二次元 / 编辑级长文）。
 #
 # 另外，id 以 image- 开头的「图像通用 skills」（构图 / 配色等与模型无关的图像工艺）
 # **在所有模式下都会并入自动清单**（见 filter_registry_for_mode）。
@@ -79,6 +82,7 @@ MODE_QWEN_T2I = "qwen-image-t2i"
 MODE_QWEN_EDIT = "qwen-image-edit"
 MODE_ANIMA = "Anima"
 MODE_MOSS = "moss"
+MODE_KREA2 = "Krea2"
 MODE_OPTIONS = (
     MODE_AUTO,
     "H3-t2va",
@@ -90,6 +94,7 @@ MODE_OPTIONS = (
     MODE_QWEN_EDIT,
     MODE_ANIMA,
     MODE_MOSS,
+    MODE_KREA2,
 )
 
 # Qwen-Image 提示词改写类 skills 的 id 标记（用于区分任务家族）
@@ -102,6 +107,12 @@ ANIMA_SKILL_MARKERS = ("anima",)
 # MOSS-Image 图像提示词增强类 skills 的 id 前缀（moss-image-prompt-enhancer 等），
 # 与 normalize_mode 的 moss- 前缀归并保持一致。
 MOSS_SKILL_MARKERS = ("moss",)
+
+# Krea 2 提示词类 skills 的 id 前缀（krea2-prompt-writing / krea2-anime-prompt /
+# krea2-editorial-longform 等），与 normalize_mode 的 krea2- 前缀归并保持一致。
+# 该家族的提示词体系是**自然语言 caption**，与 Anima / MOSS / Qwen-Image 的写法
+# 互不通用（见各 SKILL.md 的「不适用」一节）。
+KREA2_SKILL_MARKERS = ("krea2",)
 
 # 「图像通用」skills 的 id 前缀（image-composition / image-color-harmony 等）。
 # 这类 skills 承载与具体模型无关的图像工艺（构图、配色等），因此在**所有模式**下
@@ -582,6 +593,22 @@ def is_moss_skill(skill_id) -> bool:
     )
 
 
+def is_krea2_skill(skill_id) -> bool:
+    """判断某个 skills 是否属于 Krea 2 图像提示词家族（id 以 krea2 开头）。
+
+    与 normalize_mode 的 krea2- 前缀归并保持一致：`Krea2` 模式只列这一家族；
+    其他模式（H3-* / qwen-image-* / Anima / moss）排除这一家族。判定只用前缀/
+    段内匹配，不用裸子串，避免把含 "krea2" 的无关 id 误判。
+    """
+    value = str(skill_id or "").strip().casefold()
+    if not value:
+        return False
+    return any(
+        value == marker or value.startswith(f"{marker}-") or f"-{marker}-" in value
+        for marker in KREA2_SKILL_MARKERS
+    )
+
+
 def is_general_skill(skill_id) -> bool:
     """判断某个 skills 是否属于「图像通用」家族（id 以 image- 开头）。
 
@@ -607,6 +634,8 @@ def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> st
        （两段式 Positive/Negative 契约，不能只输出单一交付物）；
     3. 图像通用家族 skills（id 以 `image-` 开头）→ OUTPUT_ONLY_NOTE
        （它们产出单一交付物：提示词正文 / 配色方案）；
+    3b. Krea 2 家族 skills（id 以 `krea2-` 开头）→ OUTPUT_ONLY_NOTE
+       （该家族无论短句档、二次元还是编辑级长文，交付物都是**可直接粘贴的 caption 正文**）；
     4. 产出单一交付物的 skills（id 含 `prompt`，含散文与 JSON 两类）→ OUTPUT_ONLY_NOTE；
     5. 「自动」→ OUTPUT_ONLY_NOTE（不预设具体 skills，用同一套通用强调）；
     6. 其余风格类 skills → 空（它们会输出分镜/制作方案，强加会误导模型）。
@@ -638,6 +667,10 @@ def default_extra_note(skill_id=None, builtin_root=None, custom_root=None) -> st
     if is_general_skill(value):
         return OUTPUT_ONLY_NOTE
 
+    # 3b. Krea 2 家族（krea2-*）：交付物恒为可直接粘贴的 caption 正文
+    if is_krea2_skill(value):
+        return OUTPUT_ONLY_NOTE
+
     if not found:
         # 4. 未发现的 id：按通用「单一交付物」规则兜底（不静默丢强调）
         return OUTPUT_ONLY_NOTE if is_prompt_skill(value) else ""
@@ -657,6 +690,7 @@ def normalize_mode(mode: str) -> str:
     - `qwen-image-t2i` / `qwen-image-edit` → 原样保留
     - `Anima` / `anima-text2image` → `Anima`（家族模式，大小写与 anima- 子模式均兼容）
     - `moss` / `moss-image-prompt-enhancer` → `moss`（MOSS-Image 家族，moss- 子模式均归并）
+    - `Krea2` / `krea2-prompt-writing` → `Krea2`（Krea 2 家族，krea2- 子模式均归并）
     - 空 → `auto`
 
     兼容带前缀（H3-t2va）、不带前缀（t2va）与带家族前缀（anima-text2image、
@@ -669,6 +703,8 @@ def normalize_mode(mode: str) -> str:
         return MODE_ANIMA
     if value == MODE_MOSS or value.startswith(f"{MODE_MOSS}-"):
         return MODE_MOSS
+    if value == MODE_KREA2.casefold() or value.startswith(f"{MODE_KREA2.casefold()}-"):
+        return MODE_KREA2
     if value.startswith(MODE_PREFIX.casefold()):
         value = value[len(MODE_PREFIX):]
     return value or MODE_AUTO
@@ -689,6 +725,11 @@ def is_moss_mode(mode: str) -> bool:
     return normalize_mode(mode) == MODE_MOSS
 
 
+def is_krea2_mode(mode: str) -> bool:
+    """判断模式是否属于 Krea 2 图像提示词任务家族。"""
+    return normalize_mode(mode) == MODE_KREA2
+
+
 def is_h3_mode(mode: str) -> bool:
     """判断模式是否属于 H3 视频任务家族（含 auto 之外的 H3-* 生成模式）。"""
     return normalize_mode(mode) in {"t2va", "i2va", "fl2va", "l2va", "ref2va"}
@@ -706,8 +747,9 @@ def filter_registry_for_mode(registry, mode: str):
     - qwen-image-t2i / qwen-image-edit：该家族对应 skills + 全部通用 skills；
     - Anima：Anima 家族（id 以 anima 开头的 12 个 skills）+ 全部通用 skills；
     - moss：MOSS-Image 家族（id 以 moss 开头的 skills）+ 全部通用 skills；
-    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image、Anima 与
-      MOSS）+ 全部通用 skills；
+    - Krea2：Krea 2 家族（id 以 krea2 开头的 skills）+ 全部通用 skills；
+    - H3-*：H3 家族（h3-prompt-writing + 风格类 skills，排除 Qwen-Image、Anima、
+      MOSS 与 Krea2）+ 全部通用 skills；
     - auto：不筛选，返回全部（通用 skills 自然在内）。
     """
     normalized = normalize_mode(mode)
@@ -723,12 +765,15 @@ def filter_registry_for_mode(registry, mode: str):
             return is_anima_skill(spec.id)
         if is_moss_mode(normalized):
             return is_moss_skill(spec.id)
+        if is_krea2_mode(normalized):
+            return is_krea2_skill(spec.id)
         if is_h3_mode(normalized):
-            # H3 家族：排除 Qwen-Image、Anima 与 MOSS 三个图像提示词家族
+            # H3 家族：排除 Qwen-Image、Anima、MOSS 与 Krea2 四个图像提示词家族
             return (
                 not any(m in spec.id.casefold() for m in QWEN_IMAGE_MARKERS)
                 and not is_anima_skill(spec.id)
                 and not is_moss_skill(spec.id)
+                and not is_krea2_skill(spec.id)
             )
         return True
 
@@ -747,7 +792,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         return (
             "当前模式：Anima（二次元插画）——本清单列出 Anima 家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
-            "不要路由到 H3 视频、Qwen-Image 或 MOSS-Image 家族的写法。"
+            "不要路由到 H3 视频、Qwen-Image、MOSS-Image 或 Krea2 家族的写法。"
             "动手前请**先读取共同基准** `anima-prompt-format/references/anima-prompt-baseline.md`"
             "（其中的「高杠杆规则」是全家族通用硬规则：主画师必选、权重用大数且加权标签总数 ≤4、"
             "取景对抗自然语言漂移、Hybrid 三层混合、动作与天气要有可见后果），"
@@ -769,7 +814,7 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
         return (
             "当前模式：MOSS-Image 图像提示词增强——本清单列出 MOSS-Image 家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
-            "不要路由到 H3 视频、Qwen-Image 或 Anima 家族的写法。"
+            "不要路由到 H3 视频、Qwen-Image、Anima 或 Krea2 家族的写法。"
             "该家族现在有 2 个 skills，先按需求类型选一个来读："
             "**动画 / 二次元风格需求优先读 `moss-anime-prompt-template`**——"
             "二次元人物、IP 同人、场景插画、多人互动、海报、漫画等动画风格需求走这一支，"
@@ -795,17 +840,45 @@ def mode_family_hint(mode: str = MODE_AUTO) -> str:
             "该家族不生成图片、不调用外部 API。"
             + GENERAL_SKILL_HINT
         )
+    if is_krea2_mode(normalized):
+        return (
+            "当前模式：Krea 2（Krea-2 / K2）图像提示词——本清单列出 Krea 2 家族的 skills"
+            "（另含 image-* 图像通用 skills），请在这两类里选择；"
+            "不要路由到 H3 视频、Qwen-Image、Anima 或 MOSS-Image 家族的写法。"
+            "该家族有 3 个 skills，先按需求体量选一个来读："
+            "**普通画面 / 短需求扩写读 `krea2-prompt-writing`**——"
+            "六层骨架（媒介与风格锚句 → 主体身份 → 服装材质 → 动作因果 → 空间机位景深 → "
+            "材质分区与色盘与光位 → 画内文字），短句档 / 标准档 / 长文档三档按需求体量选；"
+            "**二次元 / 动漫 / 插画 / IP 同人 / 画师画风读 `krea2-anime-prompt`**——"
+            "单一主画风锚句、场景重构而非专有名词、带可见后果的动作节点、"
+            "能在当前景别看见的身份锚点；"
+            "**海报级 / 主视觉 / 编辑级长文读 `krea2-editorial-longform`**——"
+            "「母题整块 + 有限替换位」（身份 / 画幅 / 服装部位 / 画内文字四类），"
+            "1500–2700 词、25 段骨架、色盘百分比、五层景深。"
+            "三条硬规则：① Krea 2 读**自然语言稠密 caption**，"
+            "**禁止** Danbooru tag 串、`masterpiece` / `best quality` / `score_9` / `8k`、"
+            "`(tag:1.2)` 权重语法与 `@artist`——这些在自然语言编码器里只会引入噪声；"
+            "② **忠实优先**：不新增用户没暗示的物体、角色或道具，用户已写死的媒介"
+            "（photo / illustration / 3D render）必须保留；"
+            "③ **风格与画师要翻译成视觉属性**（媒介 / 线条 / 上色 / 色盘 / 时代），"
+            "只写名字等于没写。"
+            "写 Krea 2 提示词前如需官方原文规则，先读 "
+            "`krea2-prompt-writing/references/official-krea2-guidelines.md`；"
+            "涉及构图 / 配色时叠加 image-* 通用 skills 即可，不要用 Anima 的 tag 语法。"
+            "该家族只产出文本，不生成图片、不调用外部 API。"
+            + GENERAL_SKILL_HINT
+        )
     if is_qwen_image_mode(normalized):
         return (
             "当前模式：Qwen-Image 提示词改写——本清单列出该家族的 skills"
             "（另含 image-* 图像通用 skills），请在这两类里选择；"
-            "不要路由到 H3 视频、Anima 或 MOSS-Image 家族的写法。"
+            "不要路由到 H3 视频、Anima、MOSS-Image 或 Krea2 家族的写法。"
             + GENERAL_SKILL_HINT
         )
     if is_h3_mode(normalized):
         return (
-            "当前模式：MiniMax H3 视频——本清单已排除 Qwen-Image、Anima 与 MOSS-Image"
-            "图像提示词家族的 skills（image-* 图像通用 skills 仍保留）；"
+            "当前模式：MiniMax H3 视频——本清单已排除 Qwen-Image、Anima、MOSS-Image 与"
+            "Krea2 图像提示词家族的 skills（image-* 图像通用 skills 仍保留）；"
             "图像提示词需求请改用对应的图像家族模式；"
             "分镜的画面构图与配色可以直接借助 image-* 通用 skills。"
             + GENERAL_SKILL_HINT
@@ -1059,7 +1132,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit / Anima / moss（非 auto 时按任务家族筛选自动清单）；image-* 图像通用 skills（构图 / 配色等模型无关工艺）在所有模式下都会并入清单'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 auto / H3-t2va / H3-i2va / H3-fl2va / H3-l2va / H3-ref2va / qwen-image-t2i / qwen-image-edit / Anima / moss / Krea2（非 auto 时按任务家族筛选自动清单）；image-* 图像通用 skills（构图 / 配色等模型无关工艺）在所有模式下都会并入清单'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1096,6 +1169,8 @@ class SkillsManagerNode:
                         "（列出 anima-* 的 12 个 skills）；"
                         "moss：MOSS-Image 图像提示词增强家族"
                         "（列出 moss-* 的 skills，默认交付 JSON Layout：全局描述 + 局部方框）；"
+                        "Krea2：Krea 2（Krea-2 / K2）自然语言 caption 家族"
+                        "（列出 krea2-* 的 skills：基础写作 / 二次元 / 编辑级长文）；"
                         "所有模式下都会并入 image-* 图像通用 skills（构图 / 配色 / 画师串等模型无关工艺，"
                         "其中画师串 image-artist-chain 仅二次元 / 动漫风格生效）",
                     },
@@ -1161,6 +1236,18 @@ class SkillsManagerNode:
         "二次元提示词模板",
         "anime prompt",
         "moss anime",
+        "krea",
+        "krea2",
+        "Krea 2",
+        "K2",
+        "krea2 prompt",
+        "自然语言提示词",
+        "caption",
+        "编辑级长文",
+        "长文提示词",
+        "editorial prompt",
+        "主视觉",
+        "海报提示词",
         "漫画",
         "海报",
         "图像通用",
@@ -1251,9 +1338,11 @@ __all__ = [
     "MODE_QWEN_EDIT",
     "MODE_ANIMA",
     "MODE_MOSS",
+    "MODE_KREA2",
     "QWEN_IMAGE_MARKERS",
     "ANIMA_SKILL_MARKERS",
     "MOSS_SKILL_MARKERS",
+    "KREA2_SKILL_MARKERS",
     "GENERAL_SKILL_MARKERS",
     "GENERAL_SKILL_HINT",
     "MODE_SKILL_ALLOWLIST",
@@ -1261,6 +1350,7 @@ __all__ = [
     "is_qwen_image_mode",
     "is_anima_mode",
     "is_moss_mode",
+    "is_krea2_mode",
     "is_h3_mode",
     "filter_registry_for_mode",
     "mode_family_hint",
@@ -1271,6 +1361,7 @@ __all__ = [
     "is_prompt_skill",
     "is_anima_skill",
     "is_moss_skill",
+    "is_krea2_skill",
     "is_general_skill",
     "default_extra_note",
     "MAX_CHARS_DEFAULT",
