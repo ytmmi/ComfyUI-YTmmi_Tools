@@ -1,7 +1,7 @@
 ---
 name: image-contrast
 description: Build deliberate contrast into an image prompt - value, colour, size, texture, sharpness, density and subject-count contrast - so the eye knows where to land and the frame stops reading as evenly important everywhere. Use when a render looks busy but flat, when nothing stands out, when a poster needs one clear accent, when a group shot has no hierarchy, or when the user asks for bold, minimal, dramatic or high-impact imagery. Model-agnostic: contrast words work as tags or natural language in any diffusion model.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # 对比（Contrast）
@@ -52,6 +52,8 @@ version: 1.0.0
 
 1. **对比必须服务视线**：最强的对比点 = 你想让观者第一眼看到的地方。
    如果你的主体不是全图最亮 / 最饱和 / 最清晰的东西，构图就错了。
+   **焦点是「对比最强的地方」，不是「最亮的地方」**：全图只允许**一处**最高对比，
+   把它钉在主体上，背景里不许出现比它更亮的东西（除非那个更亮的东西就是焦点本身）。
 2. **对比要有归属**：写清「谁对谁」——`the subject against the background`，
    而不是笼统地写 `high contrast`。
 3. **对比需要留白来成立**：没有低对比的区域，高对比就不成立。
@@ -110,6 +112,8 @@ soft and low-contrast, and the far edge of the frame fades out entirely.
   Depth》与常见明度分区教学。
 - 冷暖对比承担情绪落差：影视色彩分析中对冷暖并置的通行用法。
 - 对比需要「一半加法一半减法」：mood.md 协议把 Anti-References 作为独立一半的做法。
+- 焦点 = 最高对比处、抑制项写法与「看起来有对比其实没有」的判别：
+  改编自 [prompt-craft](https://github.com/Luxvanyu/prompt-craft)（MIT License, Copyright (c) 2026 Luxvanyu）。
 
 ## 边界
 

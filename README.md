@@ -67,6 +67,7 @@ skills 的编写方式见 [custom_skills/README.md](custom_skills/README.md)。
 - [Krea 2 二次元博客](https://www.krea.ai/blog/studio-anime-aesthetics-with-krea-2) — 五个最强画风牵引（Ghibli / 新海诚 / 京都动画 / Madhouse / 90 年代 Sunrise）与草图转分镜流程
 - [MiniMax-AI/MiniMax-H3-Image](https://github.com/MiniMax-AI/MiniMax-H3-Image) / [ComfyUI 教程](https://docs.comfy.org/tutorials/image/minimax/minimax-h3-image) — H3-Image 提示词规则（t2i / edit 指南、Prompting Tips）
 - [Tongyi-MAI/Z-Image](https://github.com/Tongyi-MAI/Z-Image) / [ComfyUI 教程](https://docs.comfy.org/tutorials/image/z-image/z-image) — Z-Image（造相）变体表、S3-DiT 架构与官方参数注记
+- [Luxvanyu/prompt-craft](https://github.com/Luxvanyu/prompt-craft)（MIT License, Copyright (c) 2026 Luxvanyu）— 图像通用 skills 的成稿纪律改编来源：一图一主张、七维决策顺序、五条反默认清单、尺寸四把尺、材质写可见行为、字数预算与超预算删除顺序，以及 MOSS 实测规则（A–E 组与 G 系列）
 
 ## 许可证
 

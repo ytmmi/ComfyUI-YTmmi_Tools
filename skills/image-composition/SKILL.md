@@ -1,7 +1,7 @@
 ---
 name: image-composition
 description: Fix and design framing in image-generation prompts with shot size, camera angle, view direction, subject placement, visual hierarchy, depth layering, negative space and special lenses. Use when a render puts the subject too small, centers everything, lets characters overlap without hierarchy or lets the background steal focus, and when a portrait, full-body character, poster or key visual, group shot or scenery-led image needs its framing rebuilt from prompt text alone. Model-agnostic: the same composition words work as tags or as natural language in any diffusion model.
-version: 1.2.0
+version: 1.3.0
 ---
 
 # 图像构图（Image Composition）
@@ -132,6 +132,36 @@ version: 1.2.0
 - 仰视会同时放大下半身、缩小头，用于立绘要谨慎；
 - 表格类 / 多视图版式**禁止切机位**（分格之间机位必须一致）；
 - 角度同样受自然语言漂移影响，按需加权，并在自然语言首句补一句视角。
+
+**机位高度与心理**（写「相机在哪」，不是写形容词）：
+
+| 机位高度 | 写法 | 效果 |
+| --- | --- | --- |
+| 低于视线 | `the camera almost at floor level, looking up` | 压迫、英雄感 |
+| 与视线齐平 | `the camera at her eye level` | 平等、日常 |
+| 高于视线 | `the camera above her, looking down` | 审判、脆弱 |
+| 贴地仰视 | `the camera flat to the ground, looking up past her` | 亲密、无助 |
+
+**焦段与心理**（**焦段是思考工具，不直接写进提示词**——多数模型不认 `85mm` 这种写法，
+它只用来决定你用哪种透视词）：
+
+| 焦段 | 换算成提示词里的透视 | 心理 |
+| --- | --- | --- |
+| 14–24mm | `the edges of the frame stretching outward` | 压迫、贴近、失衡 |
+| 35mm | `a natural wide field of view` | 人眼、纪录感 |
+| 50mm | `a normal field of view` | 中性、干净 |
+| 85–135mm | `the background pressed close behind her` | 压缩、抬举、隔离 |
+| 200mm+ | `the background flattened and stacked behind her` | 窥视、抽离 |
+
+**主体占画高**：要给**可比较的锚点**，不要只说「小」。
+
+| 意图 | 写法 |
+| --- | --- |
+| 人是环境的一部分 | `she stands no taller than half the height of the door behind her` |
+| 人占大半个画幅 | `her head reaches two thirds of the frame height` |
+| 远景小人 | `a figure small in the distance, barely half the height of the railing` |
+
+只写「小 / 大」而没有锚点，模型会自己决定比例——**尺寸必须挂在另一个物体上**。
 
 ### 4. 定主体位置与视觉层级
 
@@ -291,6 +321,12 @@ cowboy shot (weighted), from below, off-center, left side, silver hair, long hai
 负面词里若要写虚化，应写 `blurry subject`——这次要的就是虚化背景，直接写 `blurry` 会自相矛盾。
 
 （`weighted` 处按你所用模型的加权语法书写。）
+
+## 依据
+
+- 焦段与机位高度的心理对照、主体占画高要挂参照物：
+  改编自 [prompt-craft](https://github.com/Luxvanyu/prompt-craft)（MIT License, Copyright (c) 2026 Luxvanyu）。
+- 取景与层级的提示词实践：社区 cinematic-prompting 指南。
 
 ## 边界
 

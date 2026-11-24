@@ -1,7 +1,7 @@
 ---
 name: image-light-and-value
 description: Design the light and the value structure of an image prompt - where light comes from and how hard it is, how many stops the scene holds, which surfaces catch the highlight and which fall into shadow, what colour the shadows take, and how contrast guides the eye to the subject. Use when a render looks flat, evenly lit or grey, when the subject does not separate from the background, when a scene needs a named light setup (window, overcast, golden hour, single hard key, practicals at night), or when the image needs a deliberate low-key or high-key treatment. Model-agnostic: the same words work as tags or as natural language.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # 光影与明度（Light & Value）
@@ -72,6 +72,32 @@ version: 1.0.0
    纯黑或没有颜色的暗部是「发灰」与「廉价」的主要来源。
 2. **高光必须有形状**：写 `a narrow specular streak along the rim` / `a soft rectangular window shape on the floor`，
    而不是 `bright`。高光形状是材质与光源的证据。
+3. **暗部与亮部不许互相越界**（铁律）：暗部里**最亮的那个亮部**，必须比亮部里**最暗的那个暗部**更暗。
+   越界了画面就会永远灰、脏、糊——两组中间调被揉成一片，谁也读不出来。
+   写法：`the brightest thing inside the shadow is still darker than the darkest thing inside the light`。
+4. **焦点是最高对比处，不是最亮处**：全图只能有**一处**最高对比，把它钉在主体上；
+   背景里不允许出现比它更亮的东西（除非那个更亮的东西就是焦点本身）。
+
+## 光比（stops）：把光写成数字
+
+「主光比补光强多少」用比值写最省事，也最容易被模型执行：
+
+```text
+0 = 1:1    1 = 2:1    2 = 4:1    3 = 8:1    4 = 16:1    5 = 32:1    6 = 64:1
+```
+
+常用区间：
+
+| 用途 | 写法 |
+| --- | --- |
+| 柔和女性人像 | `the fill sits about two stops under the key` |
+| 戏剧男性 | `the fill sits three to four stops under the key` |
+| 商业平光 | `key and fill within half a stop of each other` |
+| 背景压低 | `the background sits one to two stops under the key` |
+| 画面内的灯 | `the practical lamp sits about two and a half stops over the key` |
+
+**一条硬约束**：画面里**不允许有比主光更亮的背景物**，否则视线会被背景抢走。
+（唯一的例外：那个更亮的东西就是你要的焦点。）
 
 ## 光位速查（选一个，不要叠三个）
 
@@ -160,6 +186,8 @@ beyond dissolves into rain haze at a much lower contrast than her face.
 - 明度键（低 / 中 / 高调）作为「整张图在明度标尺上的位置」：John MacDonald《Understanding Value
   Keys for Painting Landscapes》、Proko《How to Organize Values》。
 - 「具名布光优于空词」的提示词实践：社区 cinematic-prompting 指南。
+- 明暗两档不得互相越界、焦点 = 最高对比处、光比（stops）写法：
+  改编自 [prompt-craft](https://github.com/Luxvanyu/prompt-craft)（MIT License, Copyright (c) 2026 Luxvanyu）。
 
 ## 边界
 

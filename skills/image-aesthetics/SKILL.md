@@ -1,7 +1,7 @@
 ---
 name: image-aesthetics
 description: The entry point for the model-agnostic aesthetics layer of an image prompt - composition, colour theory, contrast, light and value, space and depth, subject and story, mood and atmosphere. Explains what each layer decides, the order to fix them in, which skill to load for a given symptom, and how to combine them without the layers contradicting each other. Use when an image looks wrong but it is unclear which layer is at fault, when several aesthetic problems overlap, or when designing a repeatable aesthetic workflow for a prompt library.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # 通用美学：入口与分层（Image Aesthetics）
@@ -22,8 +22,10 @@ version: 1.0.0
 | **情感与意境** | 什么感觉、什么空气 | `image-mood-and-atmosphere` | 技术上没毛病但没感觉 |
 
 另有 `image-artist-chain`（画师串），**只对二次元生效**，不属于通用层，不要把它套在写实上。
+另有 `image-prompt-craft`（成稿纪律），它不是第八层，而是**落笔那一层**：七层决定「每层选哪个」，
+它决定「这张图写几句、每句写什么、先写哪一句」。
 
-**这九支是「通用基线层」：每一组、每个模式的清单里都会完整加载**，不属于任何单一模型家族。
+**这十支是「通用基线层」：每一组、每个模式的清单里都会完整加载**，不属于任何单一模型家族。
 换句话说，只要工作流接了 skills管理器，无论选的是 H3 / Krea2 / MOSS / Z-Image / Anima 还是
 Qwen-Image，这一层都在——**它是跨家族共用的图像工艺基线，不是可选附件**。
 家族 skills 负责「这个模型怎么说话」，这一层负责「这张画怎么好看」。
@@ -55,6 +57,7 @@ Qwen-Image，这一层都在——**它是跨家族共用的图像工艺基线�
 | 漂亮但空 | 主题与叙事 | 对比 |
 | 没感觉 | 情感与意境 | 光影、色彩 |
 | 不知道先看哪 | 构图 | 对比 |
+| 什么都有但没重点 | 成稿纪律（`image-prompt-craft`） | 对比 |
 
 **一次只改一层**，否则无法判断是哪一层起作用（与调参同理）。
 
@@ -67,6 +70,15 @@ Qwen-Image，这一层都在——**它是跨家族共用的图像工艺基线�
    空气服从中景与远景的分层。
 3. **矛盾时砍新加的**：已经写了暖光又加冷调，就砍冷调，不要在矛盾里找折中。
 4. **有明确的抑制项**：至少写一处「什么都不在那里」——空墙、无文字、无第二人。
+
+## 落笔纪律（成稿那一层）
+
+七层给的是「**选哪个**」，`image-prompt-craft` 给的是「**怎么写出来**」：
+一个主张、七个维度、字数预算、反默认清单。它**不属于七层**，在七层都定完之后才读。
+
+- 典型症状：画面「什么都有但没重点」→ 先读成稿纪律的**一图一主张**，再回来查对比层；
+- 冲突时以成稿纪律为准：它管的是**交付质量**（有没有主张、字够不够、句子落在哪），不是美学取向；
+- 它也管**篇幅**：同一张图写 80 词和写 600 词是两个作品，不是同一个作品的两版。
 
 ## 输出契约（所有美学 skill 共用）
 
@@ -111,6 +123,8 @@ Qwen-Image，这一层都在——**它是跨家族共用的图像工艺基线�
 - 单帧叙事与缺席叙事：Magnum《Telling Stories: the Single Image vs. the Series》、
   负空间作为 absence 工具的符号学研究。
 - 对比作为构图起点：David duChemin《Find the Contrast, Find the Interest》。
+- 七层顺序与「一图一主张」的成稿纪律：改编自
+  [prompt-craft](https://github.com/Luxvanyu/prompt-craft)（MIT License, Copyright (c) 2026 Luxvanyu）。
 
 ## 边界
 

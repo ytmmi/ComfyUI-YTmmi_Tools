@@ -174,7 +174,8 @@ GENERAL_SKILL_HINT = (
     "`image-space-and-depth`（空间与虚实：五层深度、遮挡、大气透视）、"
     "`image-color-harmony`（色彩理论：色相关系 / 明度饱和度 / 暗部色）、"
     "`image-subject-and-story`（主题与叙事：这张图在说什么、冻结在哪一刻）、"
-    "`image-mood-and-atmosphere`（情感与意境：色温 / 空气 / 明度键 / 反面参照）。"
+    "`image-mood-and-atmosphere`（情感与意境：色温 / 空气 / 明度键 / 反面参照）、"
+    "`image-prompt-craft`（成稿纪律：一图一主张 / 七维顺序 / 反默认清单 / 字数预算）。"
     "需要这些通用工艺时直接读取，**不要因为它们是通用 skills 就跳过**；"
     "**一次只改一层**，多层同时拉满会让画面重新变平（叠加纪律见 `image-aesthetics`）。"
     "其中 `image-artist-chain`（画师串）**只在二次元 / 动漫插画风格下生效**："
@@ -1394,7 +1395,7 @@ class SkillsManagerNode:
     """skills管理器：管理并读取 skills/ 与 custom_skills/ 中的 skills，输出指导文本。"""
 
     CATEGORY = "YTmmi/utility"
-    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 Auto / H3-video / Qwen-image-t2i / Qwen-image-edit / Anima / Moss / Krea2 / H3-image / Z-image（非 Auto 时按任务家族筛选自动清单；H3-video 为原 t2va/i2va/fl2va/l2va/ref2va 五档合并）；image-* 图像通用 skills（构图 / 配色等模型无关工艺）在所有模式下都会并入清单'
+    DESCRIPTION = 'skills管理器：管理并读取插件 skills/（内置）与 custom_skills/（自定义）目录中的 skills；选「自动」时只输出 skills 清单与读取协议，由自定义LLM与模型多轮按需读取（渐进式披露），选具体 skills 时输出其完整指导文本；模式可选 Auto / H3-video / Qwen-image-t2i / Qwen-image-edit / Anima / Moss / Krea2 / H3-image / Z-image（非 Auto 时按任务家族筛选自动清单；H3-video 为原 t2va/i2va/fl2va/l2va/ref2va 五档合并）；image-* 图像通用 skills（构图 / 配色 / 成稿纪律等模型无关工艺）在所有模式下都会并入清单'
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1491,6 +1492,9 @@ class SkillsManagerNode:
         "二次元",
         "配色",
         "颜色搭配",
+        "提示词工艺",
+        "成稿纪律",
+        "prompt craft",
         "color harmony",
         "palette",
         "moss",

@@ -1,0 +1,8 @@
+display-name-zh: 提示词工艺（成稿纪律）
+display-name-en: Prompt Craft (Drafting Discipline)
+version: 1.0.0
+tag-cn: 提示词 / 工艺 / 通用
+tag-en: Prompt / Craft / General
+summary-cn: 与具体模型无关的成稿纪律：一图一主张、七维决策顺序（瞬间→明度→光→空间镜头→色彩→材质→收尾）、五条反默认清单、尺寸四把尺、材质写可见行为、字数预算与超预算删除顺序。
+summary-en: Model-agnostic drafting discipline - one thesis per frame, a fixed seven-dimension order, the five factory defaults to break, four ways to pin scale, materials as visible behaviour, and a trimming order for over-long drafts.
+source: web

@@ -1,7 +1,7 @@
 ---
 name: moss-image-prompt-enhancer
 description: Expand an image-generation request into a detailed MOSS-Image caption or spatial layout, and compile a local JSON draft into a ready-to-paste prompt. Compatible with three prompt-writing styles (natural language for atmosphere/camera/narrative, tag strings for precise element control, and a recommended hybrid of both). Use for prompt enhancement, image composition and text placement; this skill does not generate images.
-version: 1.4.0
+version: 1.5.0
 ---
 
 # MOSS-Image Prompt Enhancer
@@ -125,6 +125,24 @@ Keep an explicit minimalist brief minimalist; develop a rich brief without
 turning it into a generic title/hero/footer template.
 Keep explanations of JSON, bounding-box annotations and conversion steps out of
 image-description fields; those are tool instructions, not depicted content.
+
+## Measured field rules (MOSS-specific)
+
+Read [references/moss-field-rules.md](references/moss-field-rules.md) before
+drafting the content. It collects what was measured on MOSS-Image itself rather
+than assumed: measure before writing (value tiers, saturation direction),
+twelve camera and perspective rules, seven light rules, seven value and colour
+rules, the six MOSS format rules and the ten world rules that break most often
+(G41, G53, G63, G64, G65, G80, G84, G87, G90, G93). It also restates the
+Caption-vs-Layout difference and why this repository defaults to Layout.
+
+Two rules from it change how a draft is written rather than what it contains:
+MOSS reads left to right and weighs the opening most, so the global light and
+colour-temperature conditions belong in the first sentence; and the "no quality
+words" ban is MOSS-only - NAI v4.5 prompts write "best quality" in 81.5% of
+cases, so drop that ban when the target model is not MOSS.
+
+Those rules are content-level. They never change the delivery format above.
 
 For designed images, compose the information and imagery together. Establish
 reading order, relative prominence, coherent groups and readable text at the

@@ -1,7 +1,7 @@
 ---
 name: moss-anime-prompt-template
 description: 把二次元人物、IP 同人、场景插画、多人互动、海报与漫画需求写成 MOSS-Image-Base / MOSS-Image-SFT 可直接使用的正向提示词（Caption / Tag / Layout 三种交付），内置画风独立首句、人数与属性绑定、镜头与空间、光照因果、Layout 字段与坐标换算等硬规则，并兼容自然语言 / Tag 串 / 混合写法三种提示词流派（混合写法最推荐）。仅做提示词改写，不生成图片、不调用外部 API。
-version: 1.4.0
+version: 1.5.0
 ---
 
 # MOSS 二次元提示词模板（sfw 版）
@@ -14,7 +14,8 @@ version: 1.4.0
 `references/` 保留原始中文模板全文与英文执行指令，仅在需要逐条比对或整段转交时读取：
 
 - `references/anime-prompt-template-zh.md` —— 原《MOSS 二次元提示词模板（sfw 版）》完整正文（§1–§16，§10 含三种写法流派建议）；
-- `references/execution-instruction-en.md` —— §17 英文执行指令，可整段交给英文环境的写词模型。
+- `references/execution-instruction-en.md` —— §17 英文执行指令，可整段交给英文环境的写词模型；
+- `../moss-image-prompt-enhancer/references/moss-field-rules.md` —— MOSS 实测规则（机位与透视 / 光 / 明度色彩 / MOSS 格式 / 世界规则 G41–G93），与 `moss-image-prompt-enhancer` 同一套结论。
 
 > 本 skills 只做提示词改写：**不生成图片、不调用外部 API、不执行任何脚本**，
 > 也不把分辨率、种子、步数、CFG、采样器、模型路径写进输出。
